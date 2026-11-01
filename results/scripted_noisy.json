@@ -1,0 +1,22 @@
+{
+  "source": "scripted",
+  "episodes": 300,
+  "noiseless": false,
+  "noise_scale": 1.0,
+  "success": 0.7433333333333333,
+  "dropped": 0.0,
+  "per_support": {
+    "bottle": {
+      "n": 58,
+      "success": 0.4827586206896552
+    },
+    "bridge": {
+      "n": 97,
+      "success": 0.8865979381443299
+    },
+    "post": {
+      "n": 145,
+      "success": 0.7517241379310344
+    }
+  }
+}

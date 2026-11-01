@@ -1,0 +1,22 @@
+{
+  "source": "runs\\residual_v1\\final_model.zip",
+  "episodes": 300,
+  "noiseless": false,
+  "noise_scale": 1.0,
+  "success": 0.84,
+  "dropped": 0.0,
+  "per_support": {
+    "bottle": {
+      "n": 58,
+      "success": 0.603448275862069
+    },
+    "bridge": {
+      "n": 97,
+      "success": 0.9175257731958762
+    },
+    "post": {
+      "n": 145,
+      "success": 0.8827586206896552
+    }
+  }
+}

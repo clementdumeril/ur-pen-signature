@@ -1,0 +1,9 @@
+{
+  "ink_points": 196,
+  "mean_error_mm": 0.11463231809715879,
+  "p95_error_mm": 0.1855338412755205,
+  "coverage": 1.0,
+  "grasp_tries": 1,
+  "mean_force_N": 1.514438299764027,
+  "protective_stop": false
+}

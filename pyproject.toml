@@ -1,0 +1,20 @@
+[project]
+name = "pensig"
+version = "0.1.0"
+description = "A UR arm that picks up a pen with a learned grasp and signs with it"
+requires-python = ">=3.10"
+dependencies = [
+    "mujoco>=3.2",
+    "numpy",
+    "gymnasium>=1.0",
+    "stable-baselines3>=2.3",
+    "torch",
+    "imageio",
+    "imageio-ffmpeg",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "tensorboard"]
+
+[tool.setuptools]
+packages = ["pensig"]
