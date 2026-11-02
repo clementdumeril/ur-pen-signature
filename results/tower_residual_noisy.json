@@ -1,0 +1,22 @@
+{
+  "source": "runs\\tower_v4\\model_1500k.zip",
+  "towers": 200,
+  "noiseless": false,
+  "noise_scale": 1.0,
+  "full_tower": 0.195,
+  "stage0_success": 0.38,
+  "stage1_success": 0.5131578947368421,
+  "place_err_mm": [
+    4.25,
+    4.29
+  ],
+  "mean_height_cm": 10.48,
+  "failures": {
+    "stage0:timeout": 71,
+    "stage0:stop": 50,
+    "stage1:timeout": 25,
+    "stage1:stop": 8,
+    "stage1:toppled": 4,
+    "stage0:toppled": 3
+  }
+}

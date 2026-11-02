@@ -39,7 +39,12 @@ def main():
     ap.add_argument("--task", choices=list(TASKS), default="pen")
     ap.add_argument("--residual", action="store_true", help="learn a correction on top of the scripted controller")
     ap.add_argument("--resume", type=Path, help="model zip to continue from (vecnormalize.pkl next to it)")
+    ap.add_argument("--log-std-init", type=float, help="initial exploration (log std of the actions)")
     args = ap.parse_args()
+    if args.log_std_init is None:
+        # The tower leaves 5 mm per side around the black block: an initial std of 0.3 (a 2 mm random step per
+        # period) took the scripted stack from 50 % to 20 % of placements, and PPO never recovered from there.
+        args.log_std_init = -0.7 if not args.residual else (-2.3 if args.task == "tower" else -1.2)
 
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
@@ -60,7 +65,7 @@ def main():
             "MlpPolicy", venv,
             n_steps=512, batch_size=1024, n_epochs=8,
             learning_rate=3e-4, gamma=0.98, gae_lambda=0.95, clip_range=0.2, ent_coef=0.0,
-            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=-1.2 if args.residual else -0.7),
+            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=args.log_std_init),
             tensorboard_log=str(args.out), seed=args.seed, device="cpu", verbose=1,
         )
 

@@ -62,21 +62,29 @@ A second task in the same cell, with the gripper never close to the table: stack
 
 - `pensig/tower.py`: Gymnasium environment, same action and protective stop as the pen grasp. Block poses come from the camera estimate (3 mm, 4 deg); the wrist force sensor, zeroed per placement, is in the observation. The fingertips stay 15 mm above the bottom of the block.
 - `pensig/tower_scripted.py`: pick, carry, and a touchdown that slows to 1 cm/s over the last 12 mm and stops on the wrist force, like `moveUntilContact`.
-- `pensig/residual.py`: `ResidualTowerEnv`, PPO on top of the scripted stack.
+- `pensig/residual.py`: `ResidualTowerEnv`, PPO on top of the scripted stack, with a small gripper correction.
 
-Scripted baseline, 200 full towers (a placement counts within 8 mm and 10 deg, released and cleared):
+Same 200 full towers under camera error (a placement counts within 8 mm and 10 deg, released and cleared):
 
 | | Full tower | Black on green | Red on black | Placement error |
 |---|---|---|---|---|
-| Camera error | 39 % | 58 % | 68 % | 4.0 mm |
-| Exact poses | 97 % | 98 % | 99 % | 0.3 mm |
+| Scripted stack | **39 %** | 58 % | 68 % | 4.0 mm |
+| PPO residual on the scripted stack (1.5M steps) | 19.5 % | 38 % | 51 % | 4.3 mm |
+| Scripted stack, exact poses | 97 % | 98 % | 99 % | 0.3 mm |
 
-Most failures under camera error are a finger landing on top of the black block: 40 mm in a 50 mm stroke leaves 5 mm per side. That is what the residual policy has to learn to avoid. Training runs at about 400 steps/s on 8 cores, so 4M steps take close to 3 hours.
+Here control is better: four PPO runs never beat the script. Most failures are a finger landing on top of the black block (40 mm in a 50 mm stroke leaves 5 mm per side) or a block set down off center, both caused by a camera error the policy cannot see. It gets the same pose estimate as the script, so it has nothing to correct with. The next step is information, not training: a second, closer estimate from the wrist camera before the descent, or feeling for the block edge with the wrist force.
+
+What the four runs taught me:
+
+- Paying the hold over the tower as much as the release taught the first policy to keep the block in hand.
+- An initial exploration std of 0.3 (a 2 mm random step every period) took the script from 50 % to 20 % of placements; PPO learned from failures and drifted further. The tower now starts at 0.1.
+- Paid per step, holding the block earned 2.5 every step while the success bonus came 20 steps later, discounted by gamma = 0.98: with half the placements succeeding, stalling was worth more than trying. The progress is now paid as a potential difference, with a fixed bonus and penalty. That stopped the drift, but not the plateau.
+- Training runs at 400 steps/s on 8 cores: 4M steps take close to 4 hours.
 
 ```
 python scripts/evaluate_tower.py --scripted --episodes 200
 python scripts/train.py --task tower --residual --timesteps 4000000 --out runs/tower
-python scripts/evaluate_tower.py --residual --policy runs/tower/final_model.zip --episodes 200 --video results/tower.mp4
+python scripts/evaluate_tower.py --residual --policy runs/tower/final_model.zip --episodes 200
 ```
 
 Measure the blocks before trusting these numbers: sizes are in `TowerConfig`.

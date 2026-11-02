@@ -22,7 +22,9 @@ BLOCK_RGBA = {"green": "0.2 0.75 0.3 1", "black": "0.06 0.06 0.06 1", "red": "0.
 BLOCK_MAX = 0.03  # half size the boxes are compiled at, shrunk at reset
 TIP_BELOW_TCP = HANDE_BODY + FINGER_LEN - TCP_Z
 OBS_CENTER = np.array([0.5, 0.0, 0.1])
-SUCCESS_PER_STEP = 4.0  # upper bound of the shaped reward per step
+SHAPING_GAMMA = 0.98  # the PPO discount in scripts/train.py
+SUCCESS_BONUS = 10.0
+FAILURE_PENALTY = 3.0  # protective stop, dropped, toppled or knocked block
 COS_UPRIGHT = np.cos(np.deg2rad(5.0))
 COS_TOPPLED = np.cos(np.deg2rad(15.0))
 
@@ -218,6 +220,7 @@ class TowerEnv(gym.Env):
         self.start_pos = {b: self.data.xpos[self.bid[b]].copy() for b in BLOCKS if b != self.held}
         self.bottom0 = hp[2] - self.sizes[self.held][1] / 2
         self.lifted = False
+        self.phi_prev = None
         self.t = 0
         self.hold = 0
         self.prev_action = np.zeros(5)
@@ -249,7 +252,7 @@ class TowerEnv(gym.Env):
         reward, success, failure = self._reward(a)
         self.prev_action = a
         if stopped:
-            reward -= 5.0
+            reward -= FAILURE_PENALTY
             success = False
         terminated = success or bool(failure) or stopped
         truncated = self.t >= cfg.episode_steps
@@ -343,10 +346,18 @@ class TowerEnv(gym.Env):
         if grasped and bottom[2] > self.bottom0 + 0.01:
             self.lifted = True
 
-        reward = 1.0 if released else 1.0 - np.tanh(10.0 * dist)
-        reward += 0.5 * grasped
-        reward += 2.0 * (1.0 - np.tanh(10.0 * d_place)) * (grasped or on_target)
-        reward += 0.5 * released
+        # Progress: reach, grasp, carry, then a released placement above anything reachable while holding.
+        if released:
+            phi = 3.0 + 0.5 * (1.0 - self.place_err / cfg.place_tol)
+        else:
+            phi = 1.0 - np.tanh(10.0 * dist) + 0.5 * grasped + 1.0 * (1.0 - np.tanh(10.0 * d_place)) * grasped
+        # Paid as a potential difference, not per step. Paid per step, holding the block over the tower
+        # earned 2.5 every step while the success bonus came 20 steps later, discounted by gamma: with half the
+        # placements succeeding, PPO learned to stall there.
+        if self.phi_prev is None:
+            self.phi_prev = phi
+        reward = SHAPING_GAMMA * phi - self.phi_prev
+        self.phi_prev = phi
         reward -= 0.2 * hit
         reward -= 0.01 * float(a @ a)
 
@@ -360,11 +371,9 @@ class TowerEnv(gym.Env):
         elif self.lifted and not grasped and touching(held, self.gid["table"]):
             failure = "dropped"
         if success:
-            # Pay the best per-step reward for every step left: finishing early must never earn less
-            # than hovering until the time limit.
-            reward += SUCCESS_PER_STEP * (cfg.episode_steps - self.t + 1)
+            reward += SUCCESS_BONUS
         if failure:
-            reward -= 5.0
+            reward -= FAILURE_PENALTY
         return float(reward), bool(success), failure
 
     # ---------------------------------------------------------------- outputs

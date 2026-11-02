@@ -51,6 +51,11 @@ class ResidualTowerEnv(_Residual, TowerEnv):
     scripted_cls = ScriptedStack
     n_phases = 8
 
+    # A small gripper correction: exploring with the full range opened the fingers and dropped the block
+    # in transit.
+    def __init__(self, cfg=None, render_mode: str | None = None, scale=(0.5, 0.5, 0.5, 0.5, 0.3)):
+        super().__init__(cfg, render_mode, scale)
+
     def next_stage(self):
         obs, info = super().next_stage()
         self.base.reset()
