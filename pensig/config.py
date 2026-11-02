@@ -94,6 +94,13 @@ class TowerConfig:
     yaw_noise: float = float(np.deg2rad(4.0))
     size_noise: float = 0.0005
     force_noise: float = 0.3
+    # Wrist camera: a second, closer estimate of a block once the TCP is within wrist_radius of its first
+    # estimate and at most wrist_max_height above it. Drawn once per block and stage, it replaces the first.
+    wrist_camera: bool = True
+    wrist_radius: float = 0.01
+    wrist_max_height: float = 0.25
+    wrist_pos_noise: float = 0.001
+    wrist_yaw_noise: float = float(np.deg2rad(1.5))
 
     grip_force: tuple = (10.0, 20.0)
     pad_friction: tuple = (0.6, 1.2)
@@ -109,5 +116,6 @@ class TowerConfig:
     def noiseless(self) -> "TowerConfig":
         cfg = TowerConfig(**{k: getattr(self, k) for k in self.__dataclass_fields__})
         cfg.pos_noise = cfg.yaw_noise = cfg.size_noise = cfg.force_noise = 0.0
+        cfg.wrist_pos_noise = cfg.wrist_yaw_noise = 0.0
         cfg.latency_prob = 0.0
         return cfg

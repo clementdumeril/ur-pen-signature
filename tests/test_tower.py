@@ -59,3 +59,16 @@ def test_scripted_tower_without_noise(env):
             built += 1
         towers += built == 2
     assert towers >= 8
+
+
+def test_wrist_estimate_before_descent():
+    env = TowerEnv(TowerConfig())
+    policy = ScriptedStack()
+    for seed in range(3):
+        env.reset(seed=seed, options={"stage": 0})
+        policy.reset()
+        assert not env.wrist_held
+        while policy.phase < 1:
+            env.step(policy(env))
+        assert env.wrist_held
+        assert np.linalg.norm(env.est_held[:2] - env.block_pose(env.held)[0][:2]) < 0.005

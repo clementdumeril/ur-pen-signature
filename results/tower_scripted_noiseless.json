@@ -1,18 +1,19 @@
 {
   "source": "scripted",
-  "towers": 100,
+  "towers": 200,
   "noiseless": true,
   "noise_scale": 1.0,
-  "full_tower": 0.97,
-  "stage0_success": 0.98,
-  "stage1_success": 0.9897959183673469,
+  "wrist_camera": true,
+  "full_tower": 0.99,
+  "stage0_success": 0.99,
+  "stage1_success": 1.0,
   "place_err_mm": [
     0.27,
     0.3
   ],
-  "mean_height_cm": 13.88,
+  "mean_height_cm": 13.96,
   "failures": {
-    "stage0:stop": 2,
-    "stage1:stop": 1
+    "stage0:stop": 1,
+    "stage0:toppled": 1
   }
 }

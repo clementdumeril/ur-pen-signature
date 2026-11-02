@@ -1,22 +1,23 @@
 {
-  "source": "runs\\tower_v4\\model_1500k.zip",
+  "source": "runs\\tower_v5\\final_model.zip",
   "towers": 200,
   "noiseless": false,
   "noise_scale": 1.0,
-  "full_tower": 0.195,
-  "stage0_success": 0.38,
-  "stage1_success": 0.5131578947368421,
+  "wrist_camera": true,
+  "full_tower": 0.77,
+  "stage0_success": 0.86,
+  "stage1_success": 0.8953488372093024,
   "place_err_mm": [
-    4.25,
-    4.29
+    1.84,
+    2.26
   ],
-  "mean_height_cm": 10.48,
+  "mean_height_cm": 13.04,
   "failures": {
-    "stage0:timeout": 71,
-    "stage0:stop": 50,
-    "stage1:timeout": 25,
-    "stage1:stop": 8,
-    "stage1:toppled": 4,
-    "stage0:toppled": 3
+    "stage0:stop": 23,
+    "stage1:stop": 16,
+    "stage0:timeout": 4,
+    "stage0:toppled": 1,
+    "stage1:timeout": 1,
+    "stage1:toppled": 1
   }
 }

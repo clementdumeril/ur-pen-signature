@@ -3,8 +3,9 @@
 One episode places one block: the middle block on the base (stage 0) or the top block on the middle one
 (stage 1). next_stage() chains the two without resetting the physics, as on the real arm.
 Same action as the pen grasp: TCP displacement (x, y, z), yaw increment, gripper (-1 close, +1 open).
-Block poses come from a camera estimate drawn once per stage; the wrist force (the UR e-Series sensor,
-zeroed at the start of the stage) tells when the block touches down.
+Block poses come from a camera estimate drawn once per stage, replaced by a closer wrist-camera estimate once the
+TCP is above the block; the wrist force (the UR e-Series sensor, zeroed at the start of the stage) tells when the
+block touches down.
 """
 
 import gymnasium as gym
@@ -83,9 +84,10 @@ class TowerEnv(gym.Env):
         self.gid = {n: m.geom(n).id for n in ("pad_left", "pad_right", "hande_body", "camera_mount", "table", *BLOCKS)}
         self.bid = {b: m.body(b).id for b in BLOCKS}
         self.gripper_geoms = np.array([self.gid[n] for n in ("hande_body", "camera_mount", "pad_left", "pad_right")])
+        self.pad_geoms = np.array([self.gid["pad_left"], self.gid["pad_right"]])
 
         self.action_space = gym.spaces.Box(-1.0, 1.0, (5,), np.float32)
-        self.observation_space = gym.spaces.Box(-np.inf, np.inf, (27,), np.float32)
+        self.observation_space = gym.spaces.Box(-np.inf, np.inf, (29,), np.float32)
         self._renderer = None
         self._camera = None
 
@@ -201,21 +203,18 @@ class TowerEnv(gym.Env):
         self._is_obstacle = np.zeros(m.ngeom, bool)
         self._is_obstacle[[self.gid["table"], *others]] = True
 
-        def noise(sigma, n=None):
-            return rng.normal(0, sigma, n) if sigma else (np.zeros(n) if n else 0.0)
-
         hp, hyaw = self.block_pose(self.held)
         tp, tyaw = self.block_pose(self.target)
-        self.est_held = hp + noise(cfg.pos_noise, 3)
-        self.est_held_yaw = hyaw + noise(cfg.yaw_noise)
-        self.est_size = self.sizes[self.held] + noise(cfg.size_noise, 2)
-        self.est_top = tp + [0, 0, self.sizes[self.target][1] / 2] + noise(cfg.pos_noise, 3)
-        self.est_target_yaw = tyaw + noise(cfg.yaw_noise)
-        self.est_target_width = self.sizes[self.target][0] + noise(cfg.size_noise)
+        self.est_held = hp + self._noise(cfg.pos_noise, 3)
+        self.est_held_yaw = hyaw + self._noise(cfg.yaw_noise)
+        self.est_size = self.sizes[self.held] + self._noise(cfg.size_noise, 2)
+        self.est_top = tp + [0, 0, self.sizes[self.target][1] / 2] + self._noise(cfg.pos_noise, 3)
+        self.est_target_yaw = tyaw + self._noise(cfg.yaw_noise)
+        self.est_target_width = self.sizes[self.target][0] + self._noise(cfg.size_noise)
         # The TCP holds the block this far above its bottom, so it ends this far above the target's top.
         self.grasp_z_off = TIP_BELOW_TCP + cfg.finger_above_bottom
-        self.est_grasp = self.est_held + [0, 0, self.grasp_z_off - self.est_size[1] / 2]
-        self.est_place = self.est_top + [0, 0, self.grasp_z_off]
+        self.wrist_held = self.wrist_target = False
+        self._update_targets()
 
         self.start_pos = {b: self.data.xpos[self.bid[b]].copy() for b in BLOCKS if b != self.held}
         self.bottom0 = hp[2] - self.sizes[self.held][1] / 2
@@ -228,6 +227,40 @@ class TowerEnv(gym.Env):
         self.latency = rng.random() < cfg.latency_prob
         self.ft_tare = self.data.sensordata[self.ft_adr:self.ft_adr + 3].copy()
         self._read_force()
+        self._wrist_look()
+
+    def _noise(self, sigma: float, n: int | None = None):
+        if not sigma:
+            return np.zeros(n) if n else 0.0
+        return self.np_random.normal(0, sigma, n)
+
+    def _update_targets(self):
+        self.est_grasp = self.est_held + [0, 0, self.grasp_z_off - self.est_size[1] / 2]
+        self.est_place = self.est_top + [0, 0, self.grasp_z_off]
+
+    def _wrist_look(self):
+        """Close-up from the wrist camera: once the TCP is above a block's first estimate, a better one.
+        The held block only before it is lifted; in the hand it hides from the camera."""
+        cfg = self.cfg
+        if not cfg.wrist_camera:
+            return
+        tcp = self.data.site_xpos[self.tcp_sid]
+
+        def above(est_top):
+            h = tcp[2] - TIP_BELOW_TCP - est_top[2]
+            return np.linalg.norm(tcp[:2] - est_top[:2]) < cfg.wrist_radius and -0.005 < h < cfg.wrist_max_height
+
+        if not self.wrist_held and not self.lifted and above(self.est_held + [0, 0, self.est_size[1] / 2]):
+            hp, hyaw = self.block_pose(self.held)
+            self.est_held = hp + self._noise(cfg.wrist_pos_noise, 3)
+            self.est_held_yaw = hyaw + self._noise(cfg.wrist_yaw_noise)
+            self.wrist_held = True
+        if not self.wrist_target and above(self.est_top):
+            tp, tyaw = self.block_pose(self.target)
+            self.est_top = tp + [0, 0, self.sizes[self.target][1] / 2] + self._noise(cfg.wrist_pos_noise, 3)
+            self.est_target_yaw = tyaw + self._noise(cfg.wrist_yaw_noise)
+            self.wrist_target = True
+        self._update_targets()
 
     # ------------------------------------------------------------------- step
 
@@ -250,6 +283,7 @@ class TowerEnv(gym.Env):
             return self._obs(), 0.0, False, True, info
 
         reward, success, failure = self._reward(a)
+        self._wrist_look()
         self.prev_action = a
         if stopped:
             reward -= FAILURE_PENALTY
@@ -279,7 +313,8 @@ class TowerEnv(gym.Env):
 
     def _protective_stop(self) -> bool:
         """Like the UR protective stop: the gripper or the held block pressed hard against the table or
-        another block, or a block knocked away."""
+        another block, or a block knocked away. A released block falling onto the tower does not count: the arm
+        only feels the block while a finger touches it."""
         d = self.data
         for b in BLOCKS:
             v = d.qvel[self.dadr[b]:self.dadr[b] + 3]
@@ -289,6 +324,9 @@ class TowerEnv(gym.Env):
         if n == 0:
             return False
         g1, g2 = d.contact.geom1[:n], d.contact.geom2[:n]
+        held = self.gid[self.held]
+        pads = np.isin(g1, self.pad_geoms) & (g2 == held) | np.isin(g2, self.pad_geoms) & (g1 == held)
+        self._is_pressing[held] = bool(pads.any())
         pressing = (self._is_pressing[g1] & self._is_obstacle[g2]) | (self._is_pressing[g2] & self._is_obstacle[g1])
         adr = d.contact.efc_address[:n][pressing]
         adr = adr[adr >= 0]
@@ -401,6 +439,7 @@ class TowerEnv(gym.Env):
             [wrap_quarter(self.est_target_yaw - yaw)],
             self.est_size * 10,
             [self.est_target_width * 10],
+            [self.wrist_held, self.wrist_target],
             self.force / 10,
             self.prev_action,
             [self.t / self.cfg.episode_steps],

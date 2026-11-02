@@ -1,4 +1,5 @@
-"""Hand-written pick and place on the same estimates the policy sees: the baseline the RL policy has to beat."""
+"""Hand-written pick and place on the same estimates the policy sees: the baseline the RL policy has to beat.
+It goes down to a block or to the tower only on the wrist-camera estimate, taken from above."""
 
 import numpy as np
 
@@ -10,12 +11,13 @@ class ScriptedStack:
     5 down until the wrist force says contact, 6 open, 7 back up."""
 
     def __init__(self, clearance: float = 0.03, settle_steps: int = 4, close_steps: int = 8, open_steps: int = 6,
-                 contact_force: float = 3.0):
+                 contact_force: float = 3.0, search: float = 0.004):
         self.clearance = clearance
         self.settle_steps = settle_steps
         self.close_steps = close_steps
         self.open_steps = open_steps
         self.contact_force = contact_force
+        self.search = search
         self.reset()
 
     def reset(self):
@@ -45,7 +47,7 @@ class ScriptedStack:
         if self.phase == 0:
             target = np.array([*e.est_grasp[:2], max(safe_z, e.est_grasp[2])])
             action = move(target, 1.0, grasp_yaw_err)
-            if near(target) and abs(grasp_yaw_err) < 0.02:
+            if near(target) and abs(grasp_yaw_err) < 0.02 and (e.wrist_held or not cfg.wrist_camera):
                 self.phase = 1
         elif self.phase == 1:
             action = move(e.est_grasp, 1.0, grasp_yaw_err)
@@ -66,17 +68,17 @@ class ScriptedStack:
         elif self.phase == 4:
             target = np.array([*e.est_place[:2], max(carry_z, e.target_pos[2])])
             action = move(target, -1.0, place_yaw_err)
-            if near(target) and abs(place_yaw_err) < 0.02:
+            if near(target) and abs(place_yaw_err) < 0.02 and (e.wrist_target or not cfg.wrist_camera):
                 self.phase = 5
                 self.f_carry = e.force.copy()
         elif self.phase == 5:
-            # Down to 2 mm above the estimated top and stop at contact, like moveUntilContact: the last 12 mm
-            # at 1 cm/s, and only there look at the wrist force, which also feels the 1 kg gripper accelerate.
-            target = e.est_place + [0, 0, 0.002]
+            # Down until contact, like moveUntilContact, at most `search` below the estimated top: at 6 cm/s,
+            # then the last 12 mm above the estimate at 1 cm/s, and only there look at the wrist force, which also
+            # feels the 1 kg gripper accelerate. Faster, the arm lags the command by centimeters and lands hard.
+            target = e.est_place - [0, 0, self.search]
             action = move(target, -1.0, place_yaw_err)
-            final = e.target_pos[2] - target[2] < 0.012
-            if final:
-                action[2] = max(action[2], -0.0005 / cfg.max_dpos)
+            final = e.target_pos[2] - e.est_place[2] < 0.012
+            action[2] = max(action[2], -(0.0005 if final else 0.003) / cfg.max_dpos)
             touched = final and np.linalg.norm(e.force - self.f_carry) > self.contact_force
             if touched or near(target, 5e-4):
                 self.phase, self.timer = 6, 0

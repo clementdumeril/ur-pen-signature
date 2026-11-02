@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--episodes", type=int, default=200, help="full towers to build")
     ap.add_argument("--noiseless", action="store_true", help="exact block poses, no latency")
     ap.add_argument("--noise-scale", type=float, default=1.0, help="multiplies the pose estimate error")
+    ap.add_argument("--no-wrist", action="store_true", help="only the first camera estimate, no wrist close-up")
     ap.add_argument("--seed", type=int, default=10_000)
     ap.add_argument("--video", type=Path, help="mp4 of the first --video-episodes towers")
     ap.add_argument("--video-episodes", type=int, default=3)
@@ -48,6 +49,9 @@ def main():
     cfg = TowerConfig().noiseless() if args.noiseless else TowerConfig()
     cfg.pos_noise *= args.noise_scale
     cfg.yaw_noise *= args.noise_scale
+    cfg.wrist_pos_noise *= args.noise_scale
+    cfg.wrist_yaw_noise *= args.noise_scale
+    cfg.wrist_camera = not args.no_wrist
     env = (ResidualTowerEnv if args.residual else TowerEnv)(cfg, render_mode="rgb_array" if args.video else None)
 
     if args.scripted:
@@ -84,7 +88,7 @@ def main():
 
     summary = {
         "source": "scripted" if args.scripted else str(args.policy), "towers": args.episodes,
-        "noiseless": args.noiseless, "noise_scale": args.noise_scale,
+        "noiseless": args.noiseless, "noise_scale": args.noise_scale, "wrist_camera": cfg.wrist_camera,
         "full_tower": float(np.mean(towers)),
         "stage0_success": float(np.mean(stage_ok[0])),
         "stage1_success": float(np.mean(stage_ok[1])) if stage_ok[1] else None,
