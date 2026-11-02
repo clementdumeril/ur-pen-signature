@@ -1,0 +1,22 @@
+{
+  "source": "scripted",
+  "towers": 200,
+  "noiseless": false,
+  "noise_scale": 1.0,
+  "full_tower": 0.39,
+  "stage0_success": 0.575,
+  "stage1_success": 0.6782608695652174,
+  "place_err_mm": [
+    4.04,
+    4.13
+  ],
+  "mean_height_cm": 11.27,
+  "failures": {
+    "stage0:stop": 58,
+    "stage1:stop": 23,
+    "stage0:timeout": 22,
+    "stage1:timeout": 12,
+    "stage0:toppled": 5,
+    "stage1:toppled": 2
+  }
+}

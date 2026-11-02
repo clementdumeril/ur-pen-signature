@@ -45,6 +45,7 @@ GRIPPER_XML = f"""
   <geom name="camera_mount" type="box" size="0.05 0.04 0.03" pos="0.025 0.10 0.0" rgba="0.2 0.2 0.2 1"
         contype="2" conaffinity="2"/>
   <site name="tcp" pos="0 0 {TCP_Z}" size="0.003" rgba="1 0 0 1" group="4"/>
+  <site name="ft" size="0.002" group="4"/>
   <camera name="wrist_cam" pos="{' '.join(map(str, CAMERA_POS))}" xyaxes="1 0 0 0 -1 0" fovy="40"/>
   <body name="finger_left" pos="0 0 {HANDE_BODY}" gravcomp="1">
     <inertial mass="0.04" pos="{PAD[0]} 0 {PAD[2]}" diaginertia="1e-5 1e-5 1e-5"/>
@@ -102,11 +103,14 @@ EXTRA_XML = """
   <equality>
     <joint joint1="finger_right" joint2="finger_left" polycoef="0 1 0 0 0" solref="0.004 1"/>
   </equality>
+  <sensor>
+    <force name="wrist_force" site="ft"/>
+  </sensor>
 </mujoco>
 """
 
 
-def build_xml() -> str:
+def build_xml(world_xml: str = WORLD_XML) -> str:
     xml_path = UR_DIR / "ur5e.xml"
     if not xml_path.exists():
         raise FileNotFoundError(f"{xml_path} missing: run python scripts/fetch_assets.py")
@@ -133,7 +137,7 @@ def build_xml() -> str:
     gripper.set("quat", site.get("quat"))
     wrist.append(gripper)
 
-    for child in ET.fromstring(WORLD_XML):
+    for child in ET.fromstring(world_xml):
         world.append(child)
 
     extra = ET.fromstring(EXTRA_XML)
@@ -150,5 +154,5 @@ def build_xml() -> str:
     return ET.tostring(root, encoding="unicode")
 
 
-def build_model() -> mujoco.MjModel:
-    return mujoco.MjModel.from_xml_string(build_xml())
+def build_model(world_xml: str = WORLD_XML) -> mujoco.MjModel:
+    return mujoco.MjModel.from_xml_string(build_xml(world_xml))

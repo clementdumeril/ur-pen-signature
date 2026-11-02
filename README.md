@@ -49,10 +49,37 @@ python scripts/draw_signature.py --residual --policy runs/residual/final_model.z
 - Cylinder-box contacts misbehave when a pad pinches the rim; the pen is a capsule.
 - With the gripper pointing away from the base, the forearm hits the table while drawing; pointing it back at the base keeps every paper position reachable.
 - The wrist camera sits on one side of the gripper: the pen must be grasped with its tip on the other side, or the mount reaches the paper before the pen.
+- With the stiff coupling between the Hand-E fingers, a closed gripper chattered in place and never reopened. The pen grasp never reopens, so it took the tower to find it; more finger armature fixes it.
+- The 1 kg gripper accelerating shows on the wrist force as much as a block touching down: the touchdown check only runs over the last 12 mm, at constant speed.
 
 ## Toward the real arm
 
 The simulation world frame is the UR controller base frame shifted up by the pedestal height, so TCP targets map to `ur_rtde` servoL directly. Still to do: pen detection with the C922, a touch-off to measure the tip position in the gripper, force_mode for the pen-down phase, and grooved fingers for the pen.
+
+## Tower of blocks
+
+A second task in the same cell, with the gripper never close to the table: stack the three lab blocks (green 50 mm, black 40 x 50 mm, red 35 x 40 mm, sizes estimated from a photo) into one tower (`results/tower_preview.png`: start, black block coming down, finished tower at 14 cm). The green block is wider than the 50 mm Hand-E stroke, so it stays where it is and is the base. Each episode places one block; `next_stage()` chains the two placements without resetting the physics.
+
+- `pensig/tower.py`: Gymnasium environment, same action and protective stop as the pen grasp. Block poses come from the camera estimate (3 mm, 4 deg); the wrist force sensor, zeroed per placement, is in the observation. The fingertips stay 15 mm above the bottom of the block.
+- `pensig/tower_scripted.py`: pick, carry, and a touchdown that slows to 1 cm/s over the last 12 mm and stops on the wrist force, like `moveUntilContact`.
+- `pensig/residual.py`: `ResidualTowerEnv`, PPO on top of the scripted stack.
+
+Scripted baseline, 200 full towers (a placement counts within 8 mm and 10 deg, released and cleared):
+
+| | Full tower | Black on green | Red on black | Placement error |
+|---|---|---|---|---|
+| Camera error | 39 % | 58 % | 68 % | 4.0 mm |
+| Exact poses | 97 % | 98 % | 99 % | 0.3 mm |
+
+Most failures under camera error are a finger landing on top of the black block: 40 mm in a 50 mm stroke leaves 5 mm per side. That is what the residual policy has to learn to avoid. Training runs at about 400 steps/s on 8 cores, so 4M steps take close to 3 hours.
+
+```
+python scripts/evaluate_tower.py --scripted --episodes 200
+python scripts/train.py --task tower --residual --timesteps 4000000 --out runs/tower
+python scripts/evaluate_tower.py --residual --policy runs/tower/final_model.zip --episodes 200 --video results/tower.mp4
+```
+
+Measure the blocks before trusting these numbers: sizes are in `TowerConfig`.
 
 ## License
 

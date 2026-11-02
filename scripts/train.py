@@ -1,6 +1,7 @@
-"""Train the pen-grasp policy with PPO on parallel MuJoCo environments.
+"""Train the pen-grasp or tower policy with PPO on parallel MuJoCo environments.
 
 python scripts/train.py --timesteps 8000000 --out runs/ppo
+python scripts/train.py --task tower --residual --timesteps 4000000 --out runs/tower
 tensorboard --logdir runs
 """
 
@@ -12,14 +13,18 @@ from dataclasses import asdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pensig.config import EnvConfig  # noqa: E402
+from pensig.config import EnvConfig, TowerConfig  # noqa: E402
 from pensig.env import PenGraspEnv  # noqa: E402
-from pensig.residual import ResidualGraspEnv  # noqa: E402
+from pensig.residual import ResidualGraspEnv, ResidualTowerEnv  # noqa: E402
+from pensig.tower import TowerEnv  # noqa: E402
+
+TASKS = {"pen": (EnvConfig, PenGraspEnv, ResidualGraspEnv), "tower": (TowerConfig, TowerEnv, ResidualTowerEnv)}
 
 
-def make_env(rank: int, seed: int, residual: bool):
+def make_env(rank: int, seed: int, residual: bool, task: str = "pen"):
     def thunk():
-        env = (ResidualGraspEnv if residual else PenGraspEnv)(EnvConfig())
+        cfg_cls, env_cls, residual_cls = TASKS[task]
+        env = (residual_cls if residual else env_cls)(cfg_cls())
         env.reset(seed=seed + 1000 * rank)
         return env
     return thunk
@@ -31,7 +36,8 @@ def main():
     ap.add_argument("--n-envs", type=int, default=os.cpu_count())
     ap.add_argument("--out", type=Path, default=Path("runs/ppo"))
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--residual", action="store_true", help="learn a correction on top of the scripted grasp")
+    ap.add_argument("--task", choices=list(TASKS), default="pen")
+    ap.add_argument("--residual", action="store_true", help="learn a correction on top of the scripted controller")
     ap.add_argument("--resume", type=Path, help="model zip to continue from (vecnormalize.pkl next to it)")
     args = ap.parse_args()
 
@@ -40,10 +46,10 @@ def main():
     from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "config.json").write_text(json.dumps({"env": asdict(EnvConfig()), "args": {
+    (args.out / "config.json").write_text(json.dumps({"env": asdict(TASKS[args.task][0]()), "args": {
         k: str(v) for k, v in vars(args).items()}}, indent=2, default=str))
 
-    venv = VecMonitor(SubprocVecEnv([make_env(i, args.seed, args.residual) for i in range(args.n_envs)]),
+    venv = VecMonitor(SubprocVecEnv([make_env(i, args.seed, args.residual, args.task) for i in range(args.n_envs)]),
                       info_keywords=("is_success", "dropped", "stopped"))
     if args.resume:
         venv = VecNormalize.load(str(args.resume.parent / "vecnormalize.pkl"), venv)

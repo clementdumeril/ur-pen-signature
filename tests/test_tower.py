@@ -1,0 +1,61 @@
+import numpy as np
+import pytest
+
+from pensig.config import TowerConfig
+from pensig.residual import ResidualTowerEnv
+from pensig.tower import BLOCKS, TowerEnv
+from pensig.tower_scripted import ScriptedStack
+
+
+@pytest.fixture(scope="module")
+def env():
+    return TowerEnv(TowerConfig().noiseless())
+
+
+def test_blocks_rest_on_table(env):
+    for seed in range(10):
+        env.reset(seed=seed)
+        before = {b: env.block_pose(b)[0] for b in BLOCKS}
+        for _ in range(20):
+            env.step(np.zeros(5))
+        for b in BLOCKS:
+            assert np.linalg.norm(env.block_pose(b)[0] - before[b]) < 0.003, (env.stage, b)
+            assert env.upright(b)
+
+
+def test_step_api(env):
+    for stage in (0, 1):
+        obs, _ = env.reset(seed=1, options={"stage": stage})
+        assert obs.shape == env.observation_space.shape
+        obs, r, term, trunc, info = env.step(env.action_space.sample())
+        assert np.all(np.isfinite(obs)) and np.isfinite(r)
+        assert {"is_success", "dropped", "stopped", "stage"} <= info.keys()
+
+
+def test_residual_obs_shape():
+    env = ResidualTowerEnv(TowerConfig())
+    obs, _ = env.reset(seed=0)
+    assert obs.shape == env.observation_space.shape
+    obs, *_ = env.step(np.zeros(5))
+    assert obs.shape == env.observation_space.shape
+
+
+def test_scripted_tower_without_noise(env):
+    policy = ScriptedStack()
+    towers = 0
+    for seed in range(10):
+        env.reset(seed=100 + seed, options={"stage": 0})
+        built = 0
+        for stage in (0, 1):
+            if stage == 1:
+                env.next_stage()
+            policy.reset()
+            done = False
+            while not done:
+                _, _, term, trunc, info = env.step(policy(env))
+                done = term or trunc
+            if not info["is_success"]:
+                break
+            built += 1
+        towers += built == 2
+    assert towers >= 8
