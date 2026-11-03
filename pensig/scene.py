@@ -21,8 +21,9 @@ ARM_JOINTS = (
 # envelope is 0.065 x 0.065 x 0.17 m centered 0.10 m from the flange. The UR7e has the UR5e kinematics.
 BASE_HEIGHT = 0.275
 
-# Robotiq Hand-E with the lab fingers: 120 mm body, 60 mm fingers, 2 x 25 mm stroke.
-HANDE_BODY = 0.12
+# Robotiq Hand-E with the lab fingers: 60 mm fingers, 2 x 25 mm stroke, fingertips 160 mm below the flange
+# (measured on the lab gripper), so a 100 mm body.
+HANDE_BODY = 0.10
 HANDE_RADIUS = 0.0325
 FINGER_LEN = 0.06
 MAX_OPEN = 0.025
@@ -39,7 +40,7 @@ SUPPORT_MAX = {"post": (0.02, 0.03, 0.07), "bridge": (0.006, 0.03, 0.07), "bottl
 
 GRIPPER_XML = f"""
 <body name="hande" gravcomp="1">
-  <inertial mass="1.0" pos="0 0 0.05" diaginertia="0.003 0.003 0.0015"/>
+  <inertial mass="1.0" pos="0 0 {HANDE_BODY / 2}" diaginertia="0.003 0.003 0.0015"/>
   <geom name="hande_body" type="cylinder" size="{HANDE_RADIUS} {HANDE_BODY / 2}" pos="0 0 {HANDE_BODY / 2}"
         rgba="0.08 0.08 0.08 1"/>
   <geom name="camera_mount" type="box" size="0.05 0.04 0.03" pos="0.025 0.10 0.0" rgba="0.2 0.2 0.2 1"

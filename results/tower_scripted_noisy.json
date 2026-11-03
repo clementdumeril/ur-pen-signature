@@ -4,17 +4,16 @@
   "noiseless": false,
   "noise_scale": 1.0,
   "wrist_camera": true,
-  "full_tower": 0.94,
-  "stage0_success": 0.965,
-  "stage1_success": 0.9740932642487047,
+  "full_tower": 0.93,
+  "stage0_success": 0.96,
+  "stage1_success": 0.96875,
   "place_err_mm": [
     1.61,
-    1.52
+    1.56
   ],
-  "mean_height_cm": 13.64,
+  "mean_height_cm": 13.61,
   "failures": {
-    "stage0:stop": 7,
-    "stage1:stop": 4,
-    "stage1:toppled": 1
+    "stage0:stop": 8,
+    "stage1:stop": 6
   }
 }

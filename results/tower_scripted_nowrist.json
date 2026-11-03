@@ -4,19 +4,19 @@
   "noiseless": false,
   "noise_scale": 1.0,
   "wrist_camera": false,
-  "full_tower": 0.525,
+  "full_tower": 0.52,
   "stage0_success": 0.66,
-  "stage1_success": 0.7954545454545454,
+  "stage1_success": 0.7878787878787878,
   "place_err_mm": [
-    4.03,
-    4.13
+    3.99,
+    4.05
   ],
-  "mean_height_cm": 11.57,
+  "mean_height_cm": 11.59,
   "failures": {
-    "stage0:stop": 40,
-    "stage0:timeout": 26,
-    "stage1:timeout": 16,
+    "stage0:stop": 37,
+    "stage0:timeout": 27,
+    "stage1:timeout": 17,
     "stage1:stop": 11,
-    "stage0:toppled": 2
+    "stage0:toppled": 4
   }
 }

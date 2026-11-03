@@ -10,16 +10,18 @@ Grasp success over the same 300 episodes with camera error (3 mm, 4 deg, one-ste
 
 | | Camera error | Bottle | Post | Bridge | Exact pose |
 |---|---|---|---|---|---|
-| Scripted grasp (baseline) | 74 % | 48 % | 75 % | 89 % | 99 % |
+| Scripted grasp (baseline) | 74 % | 48 % | 73 % | 90 % | 98.5 % |
 | PPO residual on the scripted grasp | **84 %** | 60 % | 88 % | 92 % | 93.5 % |
 
 A success is the pen lifted 8 cm with its tip on the side away from the wrist camera. Pens are 12 to 16 cm long, 7 to 12 mm wide and 6 to 25 g, on a post, a two-post bridge or a lying bottle. The residual policy (4M steps, PPO) cuts the failures under camera error by 40 %, and gives up a few points when the pose is exact: it learned to be careful.
+
+The gripper now matches the lab one, fingertips 16 cm below the flange. The residual policy and the signature numbers come from the earlier 18 cm model and were not retrained; that policy is not in the repository, so its row is not re-evaluated. The scripted rows are on the 16 cm gripper, and the scripted grasp moved by 2 points at most.
 
 Signature after the learned grasp (CD monogram, 8 cm wide, 3 cm/s): mean distance from the ink to the reference 0.11 mm, 95th percentile 0.19 mm, 100 % of the reference inked, pen force 1.51 N for a 1.5 N target.
 
 ## How it works
 
-- `pensig/scene.py`: UR5e model from MuJoCo Menagerie (the UR7e has the same kinematics), Hand-E with the lab fingers, wrist camera mount, base 0.275 m above the table as in the lab.
+- `pensig/scene.py`: UR5e model from MuJoCo Menagerie (the UR7e has the same kinematics), Hand-E with the lab fingers (fingertips 16 cm below the flange, measured), wrist camera mount, base 0.275 m above the table as in the lab.
 - `pensig/env.py`: Gymnasium environment. Action: TCP displacement, yaw, gripper. Damped least-squares IK turns the TCP target into joint commands, as servoL would. A protective stop ends the episode when the gripper or the pen presses on the table or a support, as on the real arm.
 - `pensig/scripted.py`: the hand-written grasp the policy has to beat, on the same pose estimate.
 - `pensig/residual.py`: the environment where PPO learns a correction on top of the scripted grasp.
@@ -68,12 +70,12 @@ Same 200 full towers under camera error (a placement counts within 8 mm and 10 d
 
 | | Full tower | Black on green | Red on black | Placement error |
 |---|---|---|---|---|
-| Scripted stack | **94 %** | 96.5 % | 97.4 % | 1.6 mm |
-| PPO residual on the scripted stack (500k steps) | 77 % | 86 % | 89.5 % | 2.0 mm |
-| Scripted stack, first estimate only | 52.5 % | 66 % | 79.5 % | 4.1 mm |
-| Scripted stack, exact poses | 99 % | 99 % | 100 % | 0.3 mm |
+| Scripted stack | **93 %** | 96 % | 96.9 % | 1.6 mm |
+| PPO residual on the scripted stack (500k steps) | 78 % | 86 % | 90.7 % | 2.0 mm |
+| Scripted stack, first estimate only | 52 % | 66 % | 78.8 % | 4.0 mm |
+| Scripted stack, exact poses | 98.5 % | 98.5 % | 100 % | 0.3 mm |
 
-Here control is better, and the gain came from information, not training. Before the wrist estimate the script built 39 % of the towers and the best of four PPO runs 19.5 %: most failures were a finger landing on top of the black block (40 mm in a 50 mm stroke leaves 5 mm per side) or a block set down off center, both from a camera error the policy could not see. With the close-up, the script reaches 94 %. On top of it, PPO fell from 90 % to about 80 % of placements while training and built 77 % of the towers at 500k steps, so I did not run the 4M steps. The remaining script failures are a finger catching the top edge of the block as it closes; feeling for the edge with the wrist force is the next step.
+Here control is better, and the gain came from information, not training. Before the wrist estimate the script built 39 % of the towers and the best of four PPO runs 19.5 %: most failures were a finger landing on top of the black block (40 mm in a 50 mm stroke leaves 5 mm per side) or a block set down off center, both from a camera error the policy could not see. With the close-up, the script reaches 93 %. On top of it, PPO fell from 90 % to about 80 % of placements while training and built 78 % of the towers at 500k steps (trained with the 18 cm gripper, evaluated with the 16 cm one), so I did not run the 4M steps. The remaining script failures are a finger catching the top edge of the block as it closes; feeling for the edge with the wrist force is the next step.
 
 What the five runs taught me:
 
