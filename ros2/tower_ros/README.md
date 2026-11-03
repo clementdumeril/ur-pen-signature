@@ -30,11 +30,12 @@ gone through cleanly. RViz: `/tower/blocks`, `/tower/block_points`, `/tower/targ
 
 - Step mode first (the default): every motion and gripper toggle waits for Enter. Keep a hand on the e-stop and
   the pendant speed slider low.
-- Measure first: `gripper_length` (wrist_3_link to fingertips, lab 5 went 0.14, 0.16, 0.14), the block heights,
-  and the black top against `/tower/black/top` (lab 5 saw it 2 cm low; set `black_top_offset`). In the sim a 3 mm
-  height error took the tower from 94 % to 89 %, 10 mm to 83 %.
+- Measure first: `gripper_length` (flange to fingertips: 0.16 measured on the lab Hand-E, lab 5's code ended
+  at 0.14; too short sends the fingers into the table), the block heights, and the black top against
+  `/tower/black/top` (lab 5 saw it 2 cm low; set `black_top_offset`). In the sim a 3 mm height error took the
+  tower from 94 % to 89 %, 10 mm to 83 %.
 - The gripper must be open at startup: `/toggle_gripper` only toggles.
-- Lab 5's gripper collision box reaches 4.5 cm past 0.14 m fingertips: if IK fails near the table, check
+- Lab 5's gripper collision box reaches 18.5 cm below the flange: if IK fails near the table, check
   `obstacles.yaml`.
 
 `colcon test` or `python -m pytest ros2/tower_ros` runs the geometry and phase tests without ROS.

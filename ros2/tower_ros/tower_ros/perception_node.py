@@ -51,7 +51,7 @@ class TowerPerception(Node):
         # drop points near the gripper axis below the wrist (black fingers look like the black block)
         self.wrist_frame = dp("wrist_frame", "wrist_3_link").value
         self.finger_radius = float(dp("finger_radius", 0.04).value)
-        self.gripper_length = float(dp("gripper_length", 0.14).value)
+        self.gripper_length = float(dp("gripper_length", 0.16).value)
 
         t = HsvThresholds()
         self.hsv = HsvThresholds(**{k: type(v)(dp(k, v).value) for k, v in vars(t).items()})

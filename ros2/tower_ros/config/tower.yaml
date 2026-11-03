@@ -30,7 +30,7 @@ tower_perception:
     green_top_offset: 0.0
     red_top_offset: 0.0
     finger_radius: 0.04
-    gripper_length: 0.14
+    gripper_length: 0.16
 
 tower:
   ros__parameters:
@@ -39,7 +39,7 @@ tower:
     stages: 2                # 1: black on green only
     velocity_scaling: 0.1    # MoveIt-planned moves
     acceleration_scaling: 0.1
-    gripper_length: 0.14     # wrist_3_link to fingertips; lab 5 went 0.14 -> 0.16 -> 0.14: measure it
+    gripper_length: 0.16     # flange to fingertips as measured on the lab Hand-E (lab 5 code: 0.14)
     finger_above_bottom: 0.015
     table_clearance: 0.02
     clearance: 0.05

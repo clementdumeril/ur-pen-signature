@@ -29,8 +29,9 @@ class TowerAbort(RuntimeError):
 
 @dataclass
 class TowerParams:
-    # wrist_3_link to fingertips. Lab 5 had 0.14, tried 0.16, went back to 0.14: measure it on the arm.
-    gripper_length: float = 0.14
+    # wrist_3_link (the flange) to fingertips: 0.16 measured on the lab Hand-E (lab 5 code went 0.14, 0.16,
+    # 0.14). Too short puts the fingers into the table, so check it on the arm.
+    gripper_length: float = 0.16
     finger_above_bottom: float = 0.015  # sim cfg.finger_above_bottom
     table_clearance: float = 0.02  # lab 5 TABLE_CLEARANCE
     clearance: float = 0.05  # the held block's bottom above every other block when it moves across
