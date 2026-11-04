@@ -24,11 +24,11 @@ tower_perception:
     red_s_min: 120
     red_v_min: 50
     black_v_max: 80          # lab 5 cube_max_v
-    # Lab 5 saw the RealSense read the black cube top about 2 cm low. Measure the black block with a
-    # ruler against /tower/black/top and put the difference here (positive raises the top).
-    black_top_offset: 0.0
-    green_top_offset: 0.0
-    red_top_offset: 0.0
+    # The RealSense reads dark tops low: measured on the lab blocks, green 42 for 50 mm, black 65 for 80,
+    # red 31 for 30. Ruler height minus /tower/<color>/height (positive raises the top).
+    black_top_offset: 0.015
+    green_top_offset: 0.008
+    red_top_offset: -0.001
     finger_radius: 0.04
     gripper_length: 0.16
 
@@ -58,5 +58,5 @@ tower:
     guard_force: 15.0
     retract: 0.08
     green_height: 0.05
-    black_height: 0.05
-    red_height: 0.04
+    black_height: 0.08
+    red_height: 0.03

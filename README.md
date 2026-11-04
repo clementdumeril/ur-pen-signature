@@ -84,15 +84,26 @@ What the five runs taught me:
 - Paid per step, holding the block earned 2.5 every step while the success bonus came 20 steps later, discounted by gamma = 0.98: with half the placements succeeding, stalling was worth more than trying. The progress is now paid as a potential difference, with a fixed bonus and penalty. That stopped the drift, but not the plateau.
 - A released block dropping 2 mm onto the tower spiked the contact force past the protective stop. The arm cannot feel a block it no longer holds, so the held block counts only while a finger touches it.
 - Coming down at full speed, the arm lagged the command by 9 mm and landed hard; the touchdown now starts at 6 cm/s.
-- Training runs at 170 to 400 steps/s on 8 cores: 4M steps take 3 to 6 hours.
+- Training runs at 170 to 400 steps/s on 8 cores (4M steps take 3 to 6 hours) and at 1300 steps/s on a 32-core node.
 
 ```
 python scripts/evaluate_tower.py --scripted --episodes 200
 python scripts/train.py --task tower --residual --timesteps 4000000 --out runs/tower
 python scripts/evaluate_tower.py --residual --policy runs/tower/final_model.zip --episodes 200
+python scripts/train.py --task tower --residual --block-sizes 0.05 0.05 0.04 0.08 0.035 0.03     --resume runs/tower/final_model.zip --timesteps 500000 --n-envs 32 --out runs/tower_measured
 ```
 
-Measure the blocks before trusting these numbers: sizes are in `TowerConfig`.
+Measured on the lab blocks (heights with a ruler: green 50 mm, black 80 mm, red 30 mm; widths still from the photo), with `--block-sizes 0.05 0.05 0.04 0.08 0.035 0.03`, 200 towers:
+
+| | Full tower | Black on green | Red on black | Placement error |
+|---|---|---|---|---|
+| Scripted stack | **91.5 %** | 93.5 % | 97.9 % | 1.6 mm |
+| PPO residual above, 500k more steps on these sizes | 83 % | 90.5 % | 91.7 % | 2.0 mm |
+| PPO residual above, not retrained | 55 % | 81.5 % | 67.5 % | 2.1 mm |
+
+The policy trained on the photo sizes breaks on the real ones; 500k more steps bring it back to 83 %, still under the script.
+
+On the real UR7e (`ros2/tower_ros`), black on green worked on the first run in step mode, stopping at 3.1 N on contact. The RealSense reads the tops of the green and black blocks 8 and 15 mm low; `config/tower.yaml` corrects each block.
 
 ## License
 
