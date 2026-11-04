@@ -80,6 +80,7 @@ tower_policy:
     arrive_timeout: 3.0
     gripper_threshold: 0.5
     gripper_wait: 1.0
+    grasp_raise: 0.01        # grasp 25 mm above the block bottom instead of the sim's 15 (black top hit the palm)
     closeup: true
     closeup_height: 0.30
     camera_offset: [-0.025, 0.13, 0.0]

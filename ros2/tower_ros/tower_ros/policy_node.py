@@ -115,6 +115,10 @@ class TowerPolicy(Node):
         self.max_joint_step = float(dp("max_joint_step", 0.2).value)  # rad per period: no IK branch flips
         self.gripper_threshold = float(dp("gripper_threshold", 0.5).value)
         self.gripper_wait = float(dp("gripper_wait", 1.0).value)  # s the loop pauses for a toggle
+        # Grasp this much higher on the held block than the sim (finger_above_bottom 15 mm), and so release it
+        # this much higher over the tower: with 15 mm the top of the 80 mm black block met the inside of the
+        # real Hand-E. Both estimates move up together, so the policy sees the same geometry.
+        self.grasp_raise = float(dp("grasp_raise", 0.01).value)
         self.closeup = bool(dp("closeup", True).value)
         self.closeup_height = float(dp("closeup_height", 0.30).value)
         self.camera_offset = tuple(dp("camera_offset", [-0.025, 0.13, 0.0]).value)
@@ -311,18 +315,23 @@ class TowerPolicy(Node):
         heights = {c: s[1] for c, s in self.sizes.items()}
         below = stack_below(target, heights)
 
+        def hold(e):
+            p, yaw = fr.block(e, 0.0, heights[held])
+            return p + [0, 0, self.grasp_raise], yaw
+
         def top(e):
             p, yaw = fr.block(e, below, heights[target])
-            return p + [0, 0, heights[target] / 2], yaw
+            return p + [0, 0, heights[target] / 2 + self.grasp_raise], yaw
 
-        held_e, target_top = fr.block(est[held], 0.0, heights[held]), top(est[target])
-        held_close = fr.block(close[held], 0.0, heights[held]) if held in close else None
+        held_e, target_top = hold(est[held]), top(est[target])
+        held_close = hold(close[held]) if held in close else None
         target_close = top(close[target]) if target in close else None
         if target_close is not None:
             camera_top = fr.to_world([0, 0, close[target].top])[2]
-            if abs(camera_top - target_close[0][2]) > 0.015:
+            ruler_top = target_close[0][2] - self.grasp_raise
+            if abs(camera_top - ruler_top) > 0.015:
                 log.warn(f"the camera puts the {target} top at {camera_top:.3f}, the ruler heights at "
-                         f"{target_close[0][2]:.3f} above the table: is the tower where it should be?")
+                         f"{ruler_top:.3f} above the table: is the tower where it should be?")
 
         tallest = max(fr.to_world([0, 0, e.top])[2] for e in est.values())
         start_tcp = sim_start(held_e[0], heights[held], tallest, cfg)
