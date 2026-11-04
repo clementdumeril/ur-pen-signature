@@ -78,6 +78,7 @@ def main():
     if args.resume:
         venv = VecNormalize.load(str(args.resume.parent / "vecnormalize.pkl"), venv)
         model = PPO.load(args.resume, env=venv, device="cpu")
+        model.tensorboard_log = str(args.out)  # not the run it was loaded from, maybe a Windows path
     else:
         venv = VecNormalize(venv, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=0.98)
         model = PPO(
