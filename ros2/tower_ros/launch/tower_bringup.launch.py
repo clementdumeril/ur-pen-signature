@@ -15,7 +15,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-# wrist_3_link -> camera_depth_optical_frame, identity rotation, as lab 5's static_tf_transform.py.
+# wrist_3_link -> camera_depth_optical_frame, identity rotation, as lab 5's static_tf_transform.py (planning tf).
 # Keep it equal to camera_offset in config/tower.yaml.
 CAMERA_OFFSET = ("-0.025", "0.13", "0.0")
 
@@ -34,15 +34,23 @@ def generate_launch_description():
         }.items(),
     )
 
-    camera_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="wrist_camera_tf",
-        arguments=["--x", CAMERA_OFFSET[0], "--y", CAMERA_OFFSET[1], "--z", CAMERA_OFFSET[2],
-                   "--qx", "0", "--qy", "0", "--qz", "0", "--qw", "1",
-                   "--frame-id", "wrist_3_link", "--child-frame-id", "camera_depth_optical_frame"],
-        output="screen",
-    )
+    # The RealSense publishes its own camera_link -> camera_depth_frame -> camera_depth_optical_frame tree. A
+    # static wrist_3_link -> camera_depth_optical_frame then races its static parent, so the depth frame can
+    # end up hanging off camera_link, away from the arm. Lab 5 avoided that with planning's tf node, which
+    # re-publishes the wrist link at 20 Hz (lab 5's TF tree dumps show it winning): use it when it is there.
+    try:
+        get_package_share_directory("planning")
+        camera_tf = Node(package="planning", executable="tf", name="wrist_camera_tf", output="screen")
+    except PackageNotFoundError:
+        camera_tf = Node(
+            package="tf2_ros",
+            executable="static_transform_publisher",
+            name="wrist_camera_tf",
+            arguments=["--x", CAMERA_OFFSET[0], "--y", CAMERA_OFFSET[1], "--z", CAMERA_OFFSET[2],
+                       "--qx", "0", "--qy", "0", "--qz", "0", "--qw", "1",
+                       "--frame-id", "wrist_3_link", "--child-frame-id", "camera_depth_optical_frame"],
+            output="screen",
+        )
 
     perception_node = Node(
         package="tower_ros",
