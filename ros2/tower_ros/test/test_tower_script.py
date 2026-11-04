@@ -218,3 +218,36 @@ def test_height_warning():
     logs = []
     TowerScript(arm, p, log=logs.append).stack("black", "green")
     assert any("measures 65 mm" in m for m in logs)
+
+
+class MeasuresFromTable(FakeArm):
+    """The real camera measures a block's height from the table next to it, so a stacked block reads taller."""
+
+    def estimate(self, colors, close):
+        out = super().estimate(colors, close)
+        for c, e in out.items():
+            e.height = e.top
+        return out
+
+
+def test_stacked_stage_is_skipped():
+    # A run stopped after the first placement and started again: black on green is not redone.
+    p = TowerParams()
+    arm = MeasuresFromTable(p, coarse_err=(0.0, 0.0, 0.0, 0.0))
+    TowerScript(arm, p, log=lambda *_: None).stack("black", "green")
+    arm.tool = arm.start
+    script = TowerScript(arm, p, log=lambda *_: None)
+    script.run()
+    assert script.phases[:2] == ["coarse", "skip"]
+    assert script.phases.count("close") == 1  # only the red block is picked
+    r, k = arm.blocks["red"], arm.blocks["black"]
+    assert r.bottom == pytest.approx(k.top)
+
+
+def test_block_on_the_table_is_not_stacked():
+    p = TowerParams()
+    script = TowerScript(FakeArm(p), p, log=lambda *_: None)
+    green = BlockEstimate(0.45, -0.10, 0.05, 0.0, 0.05)
+    assert not script._stacked("black", BlockEstimate(0.45, -0.10, 0.05, 0.0, 0.05), green)
+    assert not script._stacked("black", BlockEstimate(0.55, 0.12, 0.10, 0.0, 0.10), green)
+    assert script._stacked("black", BlockEstimate(0.452, -0.101, 0.10, 0.0, 0.10), green)

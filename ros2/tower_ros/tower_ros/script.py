@@ -3,7 +3,8 @@
 It is written against a small robot interface so the same code drives the arm (tower_node.TowerRobot),
 the dry run and the unit tests. Per stage (black on green, then red on black):
 
-  coarse          estimate from the start pose
+  coarse          estimate from the start pose; a stage already stacked (a run stopped by the e-stop and
+                  started again) is skipped
   closeup_held    camera above the held block, second estimate (the sim's wrist close-up: 52 % -> 94 %)
   above_held      fingertips pre_grasp above the block top
   grasp_descent   straight down to finger_above_bottom over the block bottom, at least table_clearance
@@ -51,6 +52,10 @@ class TowerParams:
     max_estimate_jump: float = 0.05  # a close-up farther than this from the coarse estimate is another object
     block_heights: dict = field(default_factory=lambda: {"green": 0.05, "black": 0.05, "red": 0.04})
     height_tolerance: float = 0.008
+    # Already stacked: the held block within stacked_xy of the target and standing at least stacked_rise
+    # taller above the table than it is (it sits on something).
+    stacked_xy: float = 0.035
+    stacked_rise: float = 0.02
 
 
 class Robot:
@@ -102,6 +107,9 @@ class TowerScript:
         r.go_start("start pose for the coarse estimate")
         est = r.estimate(BLOCKS, close=False)
         h, t = self._need(est, held), self._need(est, target)
+        if self._stacked(held, h, t):
+            self.phase("skip", f"the {held} block is already on the {target} block")
+            return
         self._check_height(held, h)
         others_top = max(e.top for c, e in est.items() if c != held)
 
@@ -184,6 +192,14 @@ class TowerScript:
             raise TowerAbort(f"the close-up {color} estimate is {dxy * 1000:.0f} mm / {dz * 1000:+.0f} mm "
                              "from the first one: probably another object")
         return new
+
+    def _stacked(self, color: str, h: BlockEstimate, t: BlockEstimate) -> bool:
+        # The height is the top minus the table next to the block, so a block on another one reads taller.
+        # Its top is a poorer test: the camera reads dark tops low, and the covered target's center is off.
+        want = self.p.block_heights.get(color)
+        if want is None:
+            return False
+        return math.hypot(h.x - t.x, h.y - t.y) < self.p.stacked_xy and h.height > want + self.p.stacked_rise
 
     def _check_height(self, color: str, e: BlockEstimate):
         want = self.p.block_heights.get(color)

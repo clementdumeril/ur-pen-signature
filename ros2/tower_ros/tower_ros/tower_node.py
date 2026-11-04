@@ -11,9 +11,16 @@
   controller switch). Every other straight move aborts the run past guard_force.
 
   ros2 run tower_ros tower --ros-args --params-file <config>/tower.yaml -p step:=true
+
+  After a stop (e-stop, guard force, failed trajectory) the node waits: release the e-stop, Enter, and it
+  runs reset_state, opens the gripper if it was closed and starts again; stages already stacked are skipped.
+  The gripper state is kept in gripper_state_file, so a new run after a crash knows it too.
 """
 
 import math
+import os
+import shlex
+import subprocess
 import threading
 import time
 from collections import deque
@@ -85,6 +92,9 @@ class TowerRobot(Node, Robot):
         self.estimate_frames = int(dp("estimate_frames", 5).value)
         self.estimate_timeout = float(dp("estimate_timeout", 6.0).value)
         self.gripper_wait = float(dp("gripper_wait", 1.5).value)
+        self.retry = bool(dp("retry", True).value)  # after a stop, wait for the operator and start again
+        self.reset_command = dp("reset_command", "ros2 run ur7e_utils reset_state").value
+        self.gripper_state_file = os.path.expanduser(dp("gripper_state_file", "~/.ros/tower_gripper_state").value)
         self.base_frame = dp("base_frame", "base_link").value
         self.wrist_frame = dp("wrist_frame", "wrist_3_link").value
         self.group = dp("group", "ur_manipulator").value
@@ -125,7 +135,8 @@ class TowerRobot(Node, Robot):
         self.forces = deque(maxlen=2000)  # (monotonic time, force xyz)
         self.block_msgs = deque(maxlen=200)  # (stamp ns, {color: BlockEstimate})
         self.zero = None
-        self.closed = False  # /toggle_gripper only toggles: start with the gripper open
+        # /toggle_gripper only toggles: the state is tracked here and kept across runs in gripper_state_file
+        self.closed = self._read_gripper_state()
         self.active_goal = None
         self.dry_seed = None
         self.dry_pose = None
@@ -299,7 +310,51 @@ class TowerRobot(Node, Robot):
         if not res.success:
             self.get_logger().warn(f"/toggle_gripper: {res.message}")
         self.closed = close
+        self._write_gripper_state()
         time.sleep(self.gripper_wait)
+
+    # ------------------------------------------------------------ recovery
+
+    def _read_gripper_state(self) -> bool:
+        try:
+            with open(self.gripper_state_file) as f:
+                return f.read().strip() == "closed"
+        except OSError:
+            return False
+
+    def _write_gripper_state(self):
+        try:
+            os.makedirs(os.path.dirname(self.gripper_state_file), exist_ok=True)
+            with open(self.gripper_state_file, "w") as f:
+                f.write("closed" if self.closed else "open")
+        except OSError as e:
+            self.get_logger().warn(f"Could not save the gripper state: {e}")
+
+    def open_if_closed(self):
+        if self.closed:
+            self.get_logger().warn(f"The gripper was left closed ({self.gripper_state_file}): opening it. If it is "
+                                   "already open, stop here and toggle it once by hand.")
+            self.gripper(False, "open before starting")
+
+    def recover(self) -> bool:
+        """After a stop: wait for the operator, reset the arm, and say whether to start again."""
+        answer = input("\n[stopped] Fix the cause, release the e-stop (turn it clockwise), then Enter to reset the "
+                       "arm and resume (stacked stages are skipped), q to quit: ")
+        if answer.strip().lower().startswith("q"):
+            return False
+        self.get_logger().info(f"Running: {self.reset_command}")
+        try:
+            res = subprocess.run(shlex.split(self.reset_command), timeout=60)
+            if res.returncode != 0:
+                self.get_logger().warn(f"{self.reset_command} exited with {res.returncode}")
+        except (OSError, subprocess.TimeoutExpired) as e:
+            self.get_logger().warn(f"{self.reset_command} failed ({e}): run it by hand")
+            input("Enter once the arm is reset: ")
+        time.sleep(2.0)
+        self.switch_to_trajectory_controller()
+        self.zero = None
+        self.open_if_closed()
+        return True
 
     # ------------------------------------------------------------ helpers
 
@@ -455,8 +510,19 @@ def main(args=None):
                  "The gripper must be open now.")
         if not node.dry_run:
             node.switch_to_trajectory_controller()
-        TowerScript(node, node.tower_params, log=log.info).run(STAGES[:max(1, min(node.stages, len(STAGES)))])
-        log.info("Tower done")
+            node.open_if_closed()
+        stages = STAGES[:max(1, min(node.stages, len(STAGES)))]
+        while True:
+            try:
+                TowerScript(node, node.tower_params, log=log.info).run(stages)
+                log.info("Tower done")
+                break
+            except TowerAbort as e:
+                node.stop_motion()
+                log.error(f"Stopped: {e}")
+                if str(e) == "stopped by the operator" or node.dry_run or not node.retry or not node.recover():
+                    break
+                log.info("Starting again from the start pose")
     except TowerAbort as e:
         log.error(f"Stopped: {e}")
     except KeyboardInterrupt:

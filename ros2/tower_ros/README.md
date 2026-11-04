@@ -26,6 +26,16 @@ The arm's pose when `tower` starts is the start pose: each stage estimates from 
 to only log targets and check IK, `-p stages:=1` for black on green only, `-p step:=false` once step mode has
 gone through cleanly. RViz: `/tower/blocks`, `/tower/block_points`, `/tower/target`.
 
+Continuous and about twice as fast, for a video (the touchdown stays at 1 cm/s):
+
+```
+ros2 run tower_ros tower --ros-args --params-file install/tower_ros/share/tower_ros/config/tower.yaml --params-file install/tower_ros/share/tower_ros/config/tower_fast.yaml
+```
+
+After an e-stop or any stop, the node waits: release the e-stop, press Enter, and it runs `reset_state`,
+opens the gripper if it was left closed and starts again from the start pose. A stage already stacked is
+skipped, so the tower goes on where it stopped. The gripper state is kept in `~/.ros/tower_gripper_state`.
+
 ## Safety
 
 - Step mode first (the default): every motion and gripper toggle waits for Enter. Keep a hand on the e-stop and
@@ -34,7 +44,8 @@ gone through cleanly. RViz: `/tower/blocks`, `/tower/block_points`, `/tower/targ
   at 0.14; too short sends the fingers into the table), the block heights, and the black top against
   `/tower/black/top` (lab 5 saw it 2 cm low; set `black_top_offset`). In the sim a 3 mm height error took the
   tower from 94 % to 89 %, 10 mm to 83 %.
-- The gripper must be open at startup: `/toggle_gripper` only toggles.
+- `/toggle_gripper` only toggles: the node opens the gripper at startup if its last run left it closed. If it
+  is open while the file says closed, toggle it once by hand first.
 - Lab 5's gripper collision box reaches 18.5 cm below the flange: if IK fails near the table, check
   `obstacles.yaml`.
 
