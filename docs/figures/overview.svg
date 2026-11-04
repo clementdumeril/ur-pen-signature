@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="536" viewBox="0 0 1200 536" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <rect x="1" y="1" width="1198" height="534" rx="16" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+
+  <!-- zones -->
+  <rect x="24" y="44" width="228" height="290" rx="10" fill="none" stroke="#B8C2CC" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <rect x="268" y="44" width="500" height="290" rx="10" fill="none" stroke="#B8C2CC" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <rect x="784" y="44" width="392" height="290" rx="10" fill="none" stroke="#B8C2CC" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <g font-size="13" fill="#5A6875" letter-spacing="1.2">
+    <text x="36" y="34">RANDOM SCENE</text>
+    <text x="280" y="34">GRASP, MUJOCO</text>
+    <text x="796" y="34">SIGN</text>
+  </g>
+
+  <!-- inputs -->
+  <image href="ov_post.png" x="40" y="60" width="196" height="122" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="40" y="60" width="196" height="122" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+  <text x="40" y="204" font-size="17" fill="#15202A">pen on a support</text>
+  <text x="40" y="224" font-size="15" fill="#5A6875">12 to 16 cm, 6 to 25 g</text>
+  <rect x="40" y="248" width="196" height="68" rx="10" fill="#FBE5CF" stroke="#C97A2B" stroke-width="1.5"/>
+  <text x="138" y="276" font-size="20" fill="#15202A" text-anchor="middle">Pose estimate</text>
+  <text x="138" y="300" font-size="15" fill="#5A6875" text-anchor="middle">3 mm, 4° error, lag</text>
+
+  <!-- estimate to both grasp boxes -->
+  <path d="M 236,282 L 276,282 L 276,112 L 298,112" fill="none" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+  <path d="M 276,222 L 298,222" fill="none" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+
+  <rect x="300" y="78" width="180" height="68" rx="10" fill="#F1F4F6" stroke="#8A9AA8" stroke-width="1.5"/>
+  <text x="390" y="108" font-size="21" fill="#15202A" text-anchor="middle">Scripted grasp</text>
+  <text x="390" y="131" font-size="15" fill="#5A6875" text-anchor="middle">approach, close, lift</text>
+
+  <rect x="300" y="188" width="180" height="68" rx="10" fill="#E2EBFA" stroke="#1F5FBF" stroke-width="1.5"/>
+  <text x="390" y="218" font-size="21" fill="#15202A" text-anchor="middle">PPO residual</text>
+  <text x="390" y="241" font-size="15" fill="#5A6875" text-anchor="middle">MLP 256 x 256</text>
+
+  <!-- sum -->
+  <path d="M 480,112 L 540,112 L 540,150" fill="none" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+  <path d="M 480,222 L 540,222 L 540,186" fill="none" stroke="#1F5FBF" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="500" y="244" font-size="15" fill="#1F5FBF">x 0.5</text>
+  <circle cx="540" cy="168" r="16" fill="#FFFFFF" stroke="#444" stroke-width="1.5"/>
+  <text x="540" y="175" font-size="22" fill="#15202A" text-anchor="middle">+</text>
+  <line x1="556" y1="168" x2="588" y2="168" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+
+  <rect x="590" y="134" width="162" height="68" rx="10" fill="#DCF1EE" stroke="#0D7A6F" stroke-width="1.5"/>
+  <text x="671" y="164" font-size="21" fill="#15202A" text-anchor="middle">IK, 20 Hz</text>
+  <text x="671" y="187" font-size="15" fill="#5A6875" text-anchor="middle">damped least sq.</text>
+  <line x1="671" y1="202" x2="671" y2="234" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+
+  <rect x="590" y="236" width="162" height="68" rx="10" fill="#F1F4F6" stroke="#8A9AA8" stroke-width="1.5"/>
+  <text x="671" y="266" font-size="21" fill="#15202A" text-anchor="middle">UR5e + Hand-E</text>
+  <text x="671" y="289" font-size="15" fill="#5A6875" text-anchor="middle">MuJoCo, 2 ms step</text>
+
+  <!-- state back to the policy -->
+  <path d="M 590,290 L 390,290 L 390,258" fill="none" stroke="#444" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ah)"/>
+  <text x="490" y="314" font-size="15" fill="#5A6875" text-anchor="middle">robot and gripper state</text>
+
+  <!-- to signing -->
+  <path d="M 752,270 L 776,270 L 776,100 L 806,100" fill="none" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+
+  <rect x="808" y="64" width="352" height="72" rx="10" fill="#DCF1EE" stroke="#0D7A6F" stroke-width="1.5"/>
+  <text x="984" y="94" font-size="21" fill="#15202A" text-anchor="middle">Tip-down, trace strokes</text>
+  <text x="984" y="118" font-size="15" fill="#5A6875" text-anchor="middle">3 cm/s, admittance on pen force, 1.5 N</text>
+  <line x1="900" y1="136" x2="900" y2="158" stroke="#444" stroke-width="2" marker-end="url(#ah)"/>
+
+  <image href="ov_ink.png" x="808" y="160" width="196" height="132" preserveAspectRatio="xMidYMid meet"/>
+  <rect x="808" y="160" width="196" height="132" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+  <text x="808" y="314" font-size="15" fill="#5A6875">reference grey, ink blue</text>
+  <text x="1020" y="200" font-size="30" fill="#15202A" font-weight="bold">0.11 mm</text>
+  <text x="1020" y="222" font-size="15" fill="#5A6875">mean ink error</text>
+  <text x="1020" y="262" font-size="30" fill="#15202A" font-weight="bold">1.51 N</text>
+  <text x="1020" y="284" font-size="15" fill="#5A6875">for a 1.5 N target</text>
+
+  <!-- band -->
+  <text x="36" y="364" font-size="13" fill="#5A6875" letter-spacing="1.2">SIMULATION</text>
+  <line x1="136" y1="359" x2="1164" y2="359" stroke="#E1E6EA" stroke-width="1"/>
+  <g font-size="15" fill="#15202A">
+    <image href="ov_bottle.png" x="36" y="378" width="140" height="104" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="36" y="378" width="140" height="104" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+    <text x="36" y="504">lying bottle</text>
+    <image href="ov_bridge.png" x="192" y="378" width="140" height="104" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="192" y="378" width="140" height="104" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+    <text x="192" y="504">two-post bridge</text>
+    <image href="ov_frame0.png" x="348" y="378" width="140" height="104" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="348" y="378" width="140" height="104" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+    <text x="348" y="504">grasp</text>
+    <image href="ov_frame2.png" x="504" y="378" width="140" height="104" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="504" y="378" width="140" height="104" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+    <text x="504" y="504">pen down</text>
+    <image href="ov_frame3.png" x="660" y="378" width="140" height="104" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="660" y="378" width="140" height="104" rx="6" fill="none" stroke="#8A9AA8" stroke-width="1"/>
+    <text x="660" y="504">monogram</text>
+  </g>
+
+  <!-- headline -->
+  <rect x="832" y="378" width="328" height="140" rx="10" fill="none" stroke="#B8461F" stroke-width="1.5"/>
+  <text x="852" y="430" font-size="42" fill="#B8461F" font-weight="bold">84 %</text>
+  <text x="972" y="412" font-size="16" fill="#15202A">grasp success under</text>
+  <text x="972" y="432" font-size="16" fill="#15202A">camera error, N = 300</text>
+  <line x1="852" y1="454" x2="1140" y2="454" stroke="#E1E6EA" stroke-width="1"/>
+  <text x="852" y="480" font-size="16" fill="#5A6875">scripted grasp alone 74 %;</text>
+  <text x="852" y="502" font-size="16" fill="#5A6875">exact pose: 93.5 % against 99 %</text>
+</svg>
