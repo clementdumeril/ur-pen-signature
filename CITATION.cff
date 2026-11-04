@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "ur-pen-signature: learned pen grasp and force-controlled signing for a UR arm, in MuJoCo"
+type: software
+authors:
+  - family-names: Dumeril
+    given-names: Clément
+    affiliation: "University of California, Berkeley"
+repository-code: "https://github.com/clementdumeril/ur-pen-signature"
+license: MIT
+date-released: "2026-11-03"
+keywords:
+  - reinforcement learning
+  - residual policy
+  - grasping
+  - MuJoCo
+  - force control

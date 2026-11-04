@@ -1,59 +1,71 @@
-# ur-pen-signature
+# ur-pen-signature: learned pen grasp and force-controlled signing for a UR arm
 
-A UR7e picks up a pen lying on a support with a learned grasp, turns it tip-down and signs with it. Simulation in MuJoCo first, then the EECS 106A lab cell at UC Berkeley (UR7e, Robotiq Hand-E, Logitech C922 on the wrist).
+[Success table](results/success_table.md) · [Evaluation summaries](results) · [Method details and reproduction](docs/REPRODUCING.md) · [Simulation notes](docs/SIMULATION_NOTES.md)
 
-Learning where it helps, control where control is better: the grasp is a PPO policy trained under camera error and randomized pens; the signature is a Cartesian trajectory with a regulated pen force.
+<!-- real-arm video here -->
+
+![Overview: random pen and support, pose estimate with camera error, scripted grasp plus PPO residual, IK and MuJoCo, then tip-down signing with force control; results](docs/figures/overview.png)
+
+A UR arm with a Robotiq Hand-E picks up a pen with a residual PPO grasp, turns it tip-down and signs with a regulated pen force. In MuJoCo, under camera error, the learned grasp succeeds in 84 % of 300 episodes against 74 % for the scripted grasp it corrects, and the signature is traced to 0.11 mm mean error at 1.51 N for a 1.5 N target. The target cell is the UR7e of the EECS 106A lab at UC Berkeley.
+
+## Method
+
+Learning where perception error makes a hand-written grasp fail, control where control is enough. The environment randomizes the pen and its support (post, two-post bridge, lying bottle) and gives the controller a pen pose estimate with camera-like error (3 mm, 4°, sometimes one step late). A scripted grasp acts on that estimate; PPO (MLP 256 x 256) learns a bounded correction on top of it, and damped least-squares IK turns the sum into joint targets at 20 Hz. After the lift, `draw.py` turns the pen tip-down and traces the strokes as a Cartesian trajectory with an admittance loop on the pen force. Details: [docs/REPRODUCING.md](docs/REPRODUCING.md).
+
+A personal project, first commit on 1 November 2026. The code is mine; the UR5e model comes from MuJoCo Menagerie (the UR7e has the same kinematics) and PPO from Stable-Baselines3.
 
 ## Results (simulation)
 
-Grasp success over the same 300 episodes with camera error (3 mm, 4 deg, one-step latency), and 200 with the exact pen pose:
+Grasp success over the same 300 episode seeds with camera error and 200 with the exact pen pose, one trained policy. 95 % Wilson intervals in brackets.
 
-| | Camera error | Bottle | Post | Bridge | Exact pose |
+| | Camera error (N = 300) | Bottle (N = 58) | Post (N = 145) | Bridge (N = 97) | Exact pose (N = 200) |
 |---|---|---|---|---|---|
-| Scripted grasp (baseline) | 74 % | 48 % | 75 % | 89 % | 99 % |
-| PPO residual on the scripted grasp | **84 %** | 60 % | 88 % | 92 % | 93.5 % |
+| Scripted grasp (baseline) | 74.3 % [69, 79] | 48.3 % [36, 61] | 75.2 % [68, 81] | 88.7 % [81, 94] | 99.0 % [96, 100] |
+| PPO residual on the scripted grasp | **84.0 % [79, 88]** | 60.3 % [47, 72] | 88.3 % [82, 93] | 91.8 % [85, 96] | 93.5 % [89, 96] |
 
-A success is the pen lifted 8 cm with its tip on the side away from the wrist camera. Pens are 12 to 16 cm long, 7 to 12 mm wide and 6 to 25 g, on a post, a two-post bridge or a lying bottle. The residual policy (4M steps, PPO) cuts the failures under camera error by 40 %, and gives up a few points when the pose is exact: it learned to be careful.
+Source: the four `*_noisy.json` and `*_noiseless.json` files in [`results/`](results), table by [`success_table.py`](scripts/success_table.py). Under camera error the residual takes failures from 26 % to 16 %; with the exact pose it gives up 5.5 points, trading accuracy on a perfect estimate for tolerance to a bad one.
 
-Signature after the learned grasp (CD monogram, 8 cm wide, 3 cm/s): mean distance from the ink to the reference 0.11 mm, 95th percentile 0.19 mm, 100 % of the reference inked, pen force 1.51 N for a 1.5 N target.
+Signature after the learned grasp, one run: the CD monogram, 8 cm wide, at 3 cm/s. Mean ink error 0.11 mm, 95th percentile 0.19 mm, 100 % of the reference inked, mean pen force 1.51 N, no protective stop ([`signature.json`](results/signature.json)).
 
-## How it works
+![MuJoCo frames: the gripper picks the pen from its support, then the pen, held tip-down, draws the CD monogram](results/signature_frames.png)
 
-- `pensig/scene.py`: UR5e model from MuJoCo Menagerie (the UR7e has the same kinematics), Hand-E with the lab fingers, wrist camera mount, base 0.275 m above the table as in the lab.
-- `pensig/env.py`: Gymnasium environment. Action: TCP displacement, yaw, gripper. Damped least-squares IK turns the TCP target into joint commands, as servoL would. A protective stop ends the episode when the gripper or the pen presses on the table or a support, as on the real arm.
-- `pensig/scripted.py`: the hand-written grasp the policy has to beat, on the same pose estimate.
-- `pensig/residual.py`: the environment where PPO learns a correction on top of the scripted grasp.
-- `pensig/draw.py`: turns the pen tip-down and traces the strokes; an admittance loop on the pen force stands in for force_mode.
-- `scripts/`: `train.py` (PPO, Stable-Baselines3), `evaluate.py`, `draw_signature.py`, `capture_signature.py` (sign with the mouse), `fetch_assets.py`.
+## Install and quick start
 
-## Run
+Python 3.10 or newer and MuJoCo 3.2 or newer ([`pyproject.toml`](pyproject.toml)). The UR5e model is downloaded from MuJoCo Menagerie, not redistributed.
 
-```
-python -m venv .venv && .venv/Scripts/activate
+```bash
+python -m venv .venv && .venv/Scripts/activate     # source .venv/bin/activate on Linux
 pip install -e ".[dev]"
-python scripts/fetch_assets.py
+python scripts/fetch_assets.py                     # sparse clone of mujoco_menagerie/universal_robots_ur5e
 python -m pytest -q
-python scripts/evaluate.py --scripted --episodes 200
+python scripts/evaluate.py --scripted --episodes 300 --out results/scripted_noisy.json    # success 0.743
 python scripts/train.py --residual --timesteps 4000000 --out runs/residual
-python scripts/evaluate.py --residual --policy runs/residual/final_model.zip --episodes 300
-python scripts/capture_signature.py --out examples/my_signature.json
-python scripts/draw_signature.py --residual --policy runs/residual/final_model.zip --strokes examples/my_signature.json --video results/signature.mp4
+python scripts/draw_signature.py --residual --policy runs/residual/final_model.zip
 ```
 
-## What the simulation taught me
+All evaluation, signature-capture and reproduction commands: [docs/REPRODUCING.md](docs/REPRODUCING.md).
 
-- MuJoCo contacts are stiff in proportion to the object's mass: a 10 g pen squeezed at 40 N sinks millimeters into the pads. The grasp uses 8 to 20 N; the drawing phase squeezes at 40 N with noslip iterations, or the pen creeps 0.8 mm per stroke.
-- Without rolling and torsional friction on the pads, a pen grasped off its center of mass pivots in the fingers as it lifts. Soft pads resist that rotation; modeling it took the scripted grasp under camera error from 60 % to 74 %.
-- A scripted P controller with full gain oscillates when the arm answers one period late, and never reaches its tolerance: halving the gain took the baseline from 36 % to 60 %. A fair baseline matters before claiming that RL beats it.
-- My first reward paid +25 for a success that ended the episode, while hovering next to the pen earned about 1.5 per step until the time limit. PPO from scratch (8M steps) learned to hover with the gripper open, and a residual policy started at 47 % and unlearned the grasp down to 1 %. Paying the best per-step reward for every step left after a success fixed it.
-- Cylinder-box contacts misbehave when a pad pinches the rim; the pen is a capsule.
-- With the gripper pointing away from the base, the forearm hits the table while drawing; pointing it back at the base keeps every paper position reachable.
-- The wrist camera sits on one side of the gripper: the pen must be grasped with its tip on the other side, or the mount reaches the paper before the pen.
+## Code structure
 
-## Toward the real arm
+| Path | Role |
+|---|---|
+| [`scene.py`](pensig/scene.py) | UR5e from Menagerie, Hand-E with the lab fingers, wrist camera mount, lab pedestal height |
+| [`env.py`](pensig/env.py), [`config.py`](pensig/config.py) | Gymnasium env, randomization, camera error, reward, protective stop |
+| [`ik.py`](pensig/ik.py), [`scripted.py`](pensig/scripted.py) | damped least-squares IK; hand-written grasp on the same estimate |
+| [`residual.py`](pensig/residual.py) | env where PPO learns a correction on the scripted grasp |
+| [`draw.py`](pensig/draw.py), [`signature.py`](pensig/signature.py) | tip-down, stroke tracing with force admittance; stroke loading and scoring |
+| [`scripts/`](scripts) | train, evaluate, draw, capture a signature, fetch assets, success table |
 
-The simulation world frame is the UR controller base frame shifted up by the pedestal height, so TCP targets map to `ur_rtde` servoL directly. Still to do: pen detection with the C922, a touch-off to measure the tip position in the gripper, force_mode for the pen-down phase, and grooved fingers for the pen.
+## Limitations
 
-## License
+- The success rates and the signature error are measured in simulation; the hardware steps (pen detection with the C922 camera, a tip touch-off, `force_mode` for the pen-down phase) are not evaluated here.
+- One training seed and one policy: the intervals cover the episodes, not the variation between training runs.
+- The UR5e model stands in for the UR7e (same kinematics, different dynamics), and the admittance loop stands in for `force_mode`.
+- One signature run, on the demo strokes.
+- The grasp numbers depend on a tuned MuJoCo contact model (pad friction, noslip iterations, capsule pen).
 
-MIT. The UR5e model comes from MuJoCo Menagerie (BSD-3) and is downloaded by `scripts/fetch_assets.py`.
+## Credits and license
+
+[MuJoCo](https://github.com/google-deepmind/mujoco) and the UR5e model of [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie), downloaded by `scripts/fetch_assets.py`; [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) for PPO; [Gymnasium](https://github.com/Farama-Foundation/Gymnasium). The lab cell geometry (pedestal height, Hand-E fingers, camera mount) follows the EECS 106A lab setup.
+
+MIT license ([LICENSE](LICENSE)). Citation metadata: [CITATION.cff](CITATION.cff).
