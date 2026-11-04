@@ -60,3 +60,35 @@ tower:
     green_height: 0.05
     black_height: 0.08
     red_height: 0.03
+
+tower_policy:
+  ros__parameters:
+    repo: ~/ur-pen-signature   # pensig (ScriptedStack) and the run folder
+    policy: runs/tower_v6/policy.npz  # from scripts/export_tower_policy.py; final_model.zip needs torch + SB3
+    step: true               # Enter before each planned move and before each stage's loop
+    dry_run: false           # IK and log only, the fingertips "follow" the command exactly
+    stages: 2
+    time_scale: 3.0          # loop period = 0.05 s * time_scale: the sim's motion at a third of its speed
+    max_speed: 0.20          # m/s, backstop: the sim commands up to 0.52 m/s, so 0.17 at time_scale 3
+    max_yaw_rate: 1.0        # rad/s, backstop (sim: 0.15 rad per step)
+    lookahead: 1.0           # periods until each streamed point is reached
+    step_limit: 160          # sim episode_steps; stages took ~85 in sim
+    guard_force: 15.0
+    force_sign: -1.0         # pushing the fingers up must log a positive policy force z
+    tracking_tol: 0.04
+    gripper_threshold: 0.5
+    gripper_wait: 1.0
+    closeup: true
+    closeup_height: 0.30
+    camera_offset: [-0.025, 0.13, 0.0]
+    gripper_length: 0.16
+    finger_axis_yaw: 0.0
+    auto_offset: true        # shift xy so the blocks sit where they were in training (x 0.38..0.60, |y| < 0.18)
+    world_offset: [0.0, 0.0] # used when auto_offset is false: policy xy = base_link xy + this
+    world_yaw: 0.0
+    table_z_expected: -0.206
+    green_size: [0.05, 0.05] # (width, height), ruler
+    black_size: [0.04, 0.08]
+    red_size: [0.035, 0.03]
+    velocity_scaling: 0.1
+    acceleration_scaling: 0.1

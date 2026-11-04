@@ -25,6 +25,7 @@ setup(
         "console_scripts": [
             "perception = tower_ros.perception_node:main",
             "tower = tower_ros.tower_node:main",
+            "tower_policy = tower_ros.policy_node:main",
         ],
     },
 )
