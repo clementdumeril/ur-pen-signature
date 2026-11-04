@@ -76,6 +76,8 @@ tower_policy:
     guard_force: 15.0
     force_sign: -1.0         # pushing the fingers up must log a positive policy force z
     tracking_tol: 0.04
+    arrive_tol: 0.003        # wait each period until the fingertips are this close to the command
+    arrive_timeout: 3.0
     gripper_threshold: 0.5
     gripper_wait: 1.0
     closeup: true

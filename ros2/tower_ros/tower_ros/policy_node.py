@@ -107,6 +107,11 @@ class TowerPolicy(Node):
         self.force_sign = float(dp("force_sign", -1.0).value)
         self.force_samples = int(dp("force_samples", 10).value)
         self.tracking_tol = float(dp("tracking_tol", 0.04).value)  # m between command and fingertips
+        # After each period, wait until the fingertips are this close to the command (at most arrive_timeout):
+        # the sim's servo reaches its target every period, and a slowed controller (pendant slider, reduced
+        # mode) then only stretches time instead of letting the command run ahead of the arm.
+        self.arrive_tol = float(dp("arrive_tol", 0.003).value)
+        self.arrive_timeout = float(dp("arrive_timeout", 3.0).value)
         self.max_joint_step = float(dp("max_joint_step", 0.2).value)  # rad per period: no IK branch flips
         self.gripper_threshold = float(dp("gripper_threshold", 0.5).value)
         self.gripper_wait = float(dp("gripper_wait", 1.0).value)  # s the loop pauses for a toggle
@@ -366,6 +371,8 @@ class TowerPolicy(Node):
 
                 next_t += period
                 time.sleep(max(0.0, next_t - time.monotonic()))
+                if self._arrive(tool, tare):
+                    next_t = time.monotonic()
                 s.t += 1
                 tcp, yaw = fr.tcp_from_tool(self._tool())
                 self._check(tool, tare)
@@ -403,6 +410,20 @@ class TowerPolicy(Node):
         pt = JointTrajectoryPoint(positions=[float(v) for v in q], time_from_start=duration(self.lookahead * period))
         self.traj_pub.publish(JointTrajectory(joint_names=list(UR_JOINTS), points=[pt]))
         return q
+
+    def _arrive(self, tool: ToolPose, tare) -> bool:
+        """Waits for the fingertips to reach the command; True if it had to wait. Stops waiting on contact
+        (the held block on the tower never reaches a command below it) and leaves the guards to _check."""
+        if self.dry_run:
+            return False
+        end, waited = time.monotonic() + self.arrive_timeout, False
+        while np.linalg.norm(self._tool().xyz() - tool.xyz()) > self.arrive_tol and time.monotonic() < end:
+            forces = self._recent_forces()
+            if self.program_running is False or forces is None or np.linalg.norm(forces.mean(0) - tare) > 3.0:
+                return waited
+            time.sleep(0.01)
+            waited = True
+        return waited
 
     def _check(self, tool: ToolPose, tare):
         """After each period: the arm follows, the wrench is alive and under guard_force."""
