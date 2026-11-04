@@ -2,6 +2,7 @@
 
 python scripts/train.py --timesteps 8000000 --out runs/ppo
 python scripts/train.py --task tower --residual --timesteps 4000000 --out runs/tower
+python scripts/train.py --task tower --residual --block-sizes 0.05 0.05 0.04 0.08 0.035 0.03     --resume runs/tower_v5/final_model.zip --timesteps 500000 --out runs/tower_v6
 tensorboard --logdir runs
 """
 
@@ -21,10 +22,20 @@ from pensig.tower import TowerEnv  # noqa: E402
 TASKS = {"pen": (EnvConfig, PenGraspEnv, ResidualGraspEnv), "tower": (TowerConfig, TowerEnv, ResidualTowerEnv)}
 
 
-def make_env(rank: int, seed: int, residual: bool, task: str = "pen"):
+def block_sizes(values) -> dict:
+    """TowerConfig overrides from --block-sizes: (width, height) of the base, middle and top blocks."""
+    if not values:
+        return {}
+    return {"base_size": tuple(values[0:2]), "mid_size": tuple(values[2:4]), "top_size": tuple(values[4:6])}
+
+
+def make_env(rank: int, seed: int, residual: bool, task: str = "pen", overrides: dict | None = None):
     def thunk():
         cfg_cls, env_cls, residual_cls = TASKS[task]
-        env = (residual_cls if residual else env_cls)(cfg_cls())
+        cfg = cfg_cls()
+        for k, v in (overrides or {}).items():
+            setattr(cfg, k, v)
+        env = (residual_cls if residual else env_cls)(cfg)
         env.reset(seed=seed + 1000 * rank)
         return env
     return thunk
@@ -40,7 +51,15 @@ def main():
     ap.add_argument("--residual", action="store_true", help="learn a correction on top of the scripted controller")
     ap.add_argument("--resume", type=Path, help="model zip to continue from (vecnormalize.pkl next to it)")
     ap.add_argument("--log-std-init", type=float, help="initial exploration (log std of the actions)")
+    ap.add_argument("--block-sizes", type=float, nargs=6, metavar="M",
+                    help="tower only: width and height of the base, middle and top blocks, instead of TowerConfig's")
     args = ap.parse_args()
+    if args.block_sizes and args.task != "tower":
+        ap.error("--block-sizes is for --task tower")
+    overrides = block_sizes(args.block_sizes)
+    cfg = TASKS[args.task][0]()
+    for k, v in overrides.items():
+        setattr(cfg, k, v)
     if args.log_std_init is None:
         # The tower leaves 5 mm per side around the black block: an initial std of 0.3 (a 2 mm random step per
         # period) took the scripted stack from 50 % to 20 % of placements, and PPO never recovered from there.
@@ -51,10 +70,10 @@ def main():
     from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "config.json").write_text(json.dumps({"env": asdict(TASKS[args.task][0]()), "args": {
+    (args.out / "config.json").write_text(json.dumps({"env": asdict(cfg), "args": {
         k: str(v) for k, v in vars(args).items()}}, indent=2, default=str))
 
-    venv = VecMonitor(SubprocVecEnv([make_env(i, args.seed, args.residual, args.task) for i in range(args.n_envs)]),
+    venv = VecMonitor(SubprocVecEnv([make_env(i, args.seed, args.residual, args.task, overrides) for i in range(args.n_envs)]),
                       info_keywords=("is_success", "dropped", "stopped"))
     if args.resume:
         venv = VecNormalize.load(str(args.resume.parent / "vecnormalize.pkl"), venv)
