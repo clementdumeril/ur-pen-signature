@@ -1,6 +1,8 @@
-"""Train the pen-grasp policy with PPO on parallel MuJoCo environments.
+"""Train the pen-grasp or tower policy with PPO on parallel MuJoCo environments.
 
 python scripts/train.py --timesteps 8000000 --out runs/ppo
+python scripts/train.py --task tower --residual --timesteps 4000000 --out runs/tower
+python scripts/train.py --task tower --residual --block-sizes 0.05 0.05 0.04 0.08 0.035 0.03     --resume runs/tower_v5/final_model.zip --timesteps 500000 --out runs/tower_v6
 tensorboard --logdir runs
 """
 
@@ -12,14 +14,28 @@ from dataclasses import asdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pensig.config import EnvConfig  # noqa: E402
+from pensig.config import EnvConfig, TowerConfig  # noqa: E402
 from pensig.env import PenGraspEnv  # noqa: E402
-from pensig.residual import ResidualGraspEnv  # noqa: E402
+from pensig.residual import ResidualGraspEnv, ResidualTowerEnv  # noqa: E402
+from pensig.tower import TowerEnv  # noqa: E402
+
+TASKS = {"pen": (EnvConfig, PenGraspEnv, ResidualGraspEnv), "tower": (TowerConfig, TowerEnv, ResidualTowerEnv)}
 
 
-def make_env(rank: int, seed: int, residual: bool):
+def block_sizes(values) -> dict:
+    """TowerConfig overrides from --block-sizes: (width, height) of the base, middle and top blocks."""
+    if not values:
+        return {}
+    return {"base_size": tuple(values[0:2]), "mid_size": tuple(values[2:4]), "top_size": tuple(values[4:6])}
+
+
+def make_env(rank: int, seed: int, residual: bool, task: str = "pen", overrides: dict | None = None):
     def thunk():
-        env = (ResidualGraspEnv if residual else PenGraspEnv)(EnvConfig())
+        cfg_cls, env_cls, residual_cls = TASKS[task]
+        cfg = cfg_cls()
+        for k, v in (overrides or {}).items():
+            setattr(cfg, k, v)
+        env = (residual_cls if residual else env_cls)(cfg)
         env.reset(seed=seed + 1000 * rank)
         return env
     return thunk
@@ -31,30 +47,45 @@ def main():
     ap.add_argument("--n-envs", type=int, default=os.cpu_count())
     ap.add_argument("--out", type=Path, default=Path("runs/ppo"))
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--residual", action="store_true", help="learn a correction on top of the scripted grasp")
+    ap.add_argument("--task", choices=list(TASKS), default="pen")
+    ap.add_argument("--residual", action="store_true", help="learn a correction on top of the scripted controller")
     ap.add_argument("--resume", type=Path, help="model zip to continue from (vecnormalize.pkl next to it)")
+    ap.add_argument("--log-std-init", type=float, help="initial exploration (log std of the actions)")
+    ap.add_argument("--block-sizes", type=float, nargs=6, metavar="M",
+                    help="tower only: width and height of the base, middle and top blocks, instead of TowerConfig's")
     args = ap.parse_args()
+    if args.block_sizes and args.task != "tower":
+        ap.error("--block-sizes is for --task tower")
+    overrides = block_sizes(args.block_sizes)
+    cfg = TASKS[args.task][0]()
+    for k, v in overrides.items():
+        setattr(cfg, k, v)
+    if args.log_std_init is None:
+        # The tower leaves 5 mm per side around the black block: an initial std of 0.3 (a 2 mm random step per
+        # period) took the scripted stack from 50 % to 20 % of placements, and PPO never recovered from there.
+        args.log_std_init = -0.7 if not args.residual else (-2.3 if args.task == "tower" else -1.2)
 
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
     from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "config.json").write_text(json.dumps({"env": asdict(EnvConfig()), "args": {
+    (args.out / "config.json").write_text(json.dumps({"env": asdict(cfg), "args": {
         k: str(v) for k, v in vars(args).items()}}, indent=2, default=str))
 
-    venv = VecMonitor(SubprocVecEnv([make_env(i, args.seed, args.residual) for i in range(args.n_envs)]),
+    venv = VecMonitor(SubprocVecEnv([make_env(i, args.seed, args.residual, args.task, overrides) for i in range(args.n_envs)]),
                       info_keywords=("is_success", "dropped", "stopped"))
     if args.resume:
         venv = VecNormalize.load(str(args.resume.parent / "vecnormalize.pkl"), venv)
         model = PPO.load(args.resume, env=venv, device="cpu")
+        model.tensorboard_log = str(args.out)  # not the run it was loaded from, maybe a Windows path
     else:
         venv = VecNormalize(venv, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=0.98)
         model = PPO(
             "MlpPolicy", venv,
             n_steps=512, batch_size=1024, n_epochs=8,
             learning_rate=3e-4, gamma=0.98, gae_lambda=0.95, clip_range=0.2, ent_coef=0.0,
-            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=-1.2 if args.residual else -0.7),
+            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=args.log_std_init),
             tensorboard_log=str(args.out), seed=args.seed, device="cpu", verbose=1,
         )
 

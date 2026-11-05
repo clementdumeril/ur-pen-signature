@@ -8,3 +8,4 @@ results/*.mp4
 assets/lab/
 MUJOCO_LOG.TXT
 results/*.log
+*.egg-info/

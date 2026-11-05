@@ -1,0 +1,19 @@
+{
+  "source": "scripted",
+  "towers": 200,
+  "noiseless": true,
+  "noise_scale": 1.0,
+  "wrist_camera": true,
+  "full_tower": 0.985,
+  "stage0_success": 0.985,
+  "stage1_success": 1.0,
+  "place_err_mm": [
+    0.27,
+    0.3
+  ],
+  "mean_height_cm": 13.96,
+  "failures": {
+    "stage0:toppled": 2,
+    "stage0:stop": 1
+  }
+}

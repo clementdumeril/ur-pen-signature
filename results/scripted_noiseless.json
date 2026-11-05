@@ -3,7 +3,7 @@
   "episodes": 200,
   "noiseless": true,
   "noise_scale": 1.0,
-  "success": 0.99,
+  "success": 0.985,
   "dropped": 0.0,
   "per_support": {
     "bottle": {
@@ -12,7 +12,7 @@
     },
     "bridge": {
       "n": 70,
-      "success": 1.0
+      "success": 0.9857142857142858
     },
     "post": {
       "n": 97,

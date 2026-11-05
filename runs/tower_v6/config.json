@@ -1,0 +1,95 @@
+{
+  "env": {
+    "control_dt": 0.05,
+    "sim_dt": 0.002,
+    "episode_steps": 160,
+    "max_dpos": 0.015,
+    "max_dyaw": 0.15,
+    "target_lo": [
+      0.25,
+      -0.35,
+      0.02
+    ],
+    "target_hi": [
+      0.75,
+      0.35,
+      0.45
+    ],
+    "base_size": [
+      0.05,
+      0.05
+    ],
+    "mid_size": [
+      0.04,
+      0.08
+    ],
+    "top_size": [
+      0.035,
+      0.03
+    ],
+    "size_jitter": 0.003,
+    "block_mass": [
+      0.015,
+      0.06
+    ],
+    "block_friction": [
+      0.4,
+      0.9
+    ],
+    "xy_lo": [
+      0.38,
+      -0.18
+    ],
+    "xy_hi": [
+      0.6,
+      0.18
+    ],
+    "min_gap": 0.1,
+    "stage_probs": [
+      0.5,
+      0.5
+    ],
+    "stack_offset": 0.004,
+    "stack_yaw": 0.08726646259971647,
+    "start_above": [
+      0.08,
+      0.16
+    ],
+    "start_xy_spread": 0.1,
+    "finger_above_bottom": 0.015,
+    "pos_noise": 0.003,
+    "yaw_noise": 0.06981317007977318,
+    "size_noise": 0.0005,
+    "force_noise": 0.3,
+    "wrist_camera": true,
+    "wrist_radius": 0.01,
+    "wrist_max_height": 0.25,
+    "wrist_pos_noise": 0.001,
+    "wrist_yaw_noise": 0.026179938779914945,
+    "grip_force": [
+      10.0,
+      20.0
+    ],
+    "pad_friction": [
+      0.6,
+      1.2
+    ],
+    "latency_prob": 0.3,
+    "stop_force": 25.0,
+    "place_tol": 0.008,
+    "place_yaw_tol": 0.17453292519943295,
+    "clear_height": 0.01,
+    "hold_steps": 3
+  },
+  "args": {
+    "timesteps": "500000",
+    "n_envs": "32",
+    "out": "runs/tower_v6",
+    "seed": "0",
+    "task": "tower",
+    "residual": "True",
+    "resume": "/global/scratch/users/clementdumeril/tower_v5/final_model.zip",
+    "log_std_init": "-2.3",
+    "block_sizes": "[0.05, 0.05, 0.04, 0.08, 0.035, 0.03]"
+  }
+}

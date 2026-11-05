@@ -1,0 +1,13 @@
+# Continuous and about twice as fast, for a demo or a video. Load it after tower.yaml:
+#   ros2 run tower_ros tower --ros-args --params-file <config>/tower.yaml --params-file <config>/tower_fast.yaml
+# The touchdown keeps 1 cm/s: that is what lets it stop at 3 N.
+
+tower:
+  ros__parameters:
+    step: false
+    velocity_scaling: 0.25
+    acceleration_scaling: 0.25
+    move_speed: 0.06
+    approach_speed: 0.03
+    gripper_wait: 1.0
+    settle: 0.7

@@ -1,17 +1,18 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "ur-pen-signature: learned pen grasp and force-controlled signing for a UR arm, in MuJoCo"
+title: "ur7e-block-tower: stacking blocks with a UR7e, from MuJoCo to the real arm"
 type: software
 authors:
   - family-names: Dumeril
     given-names: Clément
     affiliation: "University of California, Berkeley"
-repository-code: "https://github.com/clementdumeril/ur-pen-signature"
+repository-code: "https://github.com/clementdumeril/ur7e-block-tower"
 license: MIT
-date-released: "2026-11-03"
+date-released: "2026-11-04"
 keywords:
   - reinforcement learning
   - residual policy
-  - grasping
+  - pick and place
+  - ROS 2
   - MuJoCo
   - force control

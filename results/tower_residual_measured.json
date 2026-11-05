@@ -1,0 +1,36 @@
+{
+  "source": "runs\\tower_v6\\final_model.zip",
+  "towers": 200,
+  "noiseless": false,
+  "noise_scale": 1.0,
+  "wrist_camera": true,
+  "block_sizes": [
+    [
+      0.05,
+      0.05
+    ],
+    [
+      0.04,
+      0.08
+    ],
+    [
+      0.035,
+      0.03
+    ]
+  ],
+  "full_tower": 0.83,
+  "stage0_success": 0.905,
+  "stage1_success": 0.9171270718232044,
+  "place_err_mm": [
+    1.73,
+    2.23
+  ],
+  "mean_height_cm": 15.6,
+  "failures": {
+    "stage0:stop": 17,
+    "stage1:stop": 13,
+    "stage1:timeout": 2,
+    "stage0:timeout": 1,
+    "stage0:knocked": 1
+  }
+}
