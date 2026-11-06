@@ -37,6 +37,18 @@ The gain came from information, not training: without the close-up, most failure
 
 Source: the `tower_*.json` files in [`results/`](results).
 
+## End-to-end PPO, no script at run time
+
+From the plain reset, PPO never finds a placement, so it never sees a success to learn from. [`train_tower_curriculum.py`](scripts/train_tower_curriculum.py) starts episodes partway through the task, from states saved along scripted runs, and moves the start one phase earlier once the policy succeeds from there ([`curriculum.py`](pensig/curriculum.py); start states from demonstrations as in Nair et al. 2018 and Salimans and Chen 2018, reverse curriculum as in Florensa et al. 2017). Block sizes are random at every reset.
+
+First run on Savio, 26M steps in 11 h, 50 episodes from each start phase:
+
+| Start phase | 7 back up | 6 open | 5 touchdown | 4 over the tower | 3 lift | 0-2 grasp |
+|---|---|---|---|---|---|---|
+| Success | 90 % | 76 % | 74 % | 6 % | 0 % | 0 % |
+
+The policy learned the end of the task alone and passed the carry and lift phases at 5M steps, then stalled on the grasp and forgot them: most failures from the earlier phases are timeouts, with the arm hovering, and protective stops against the table or the tower. The second run resumes from the 5M checkpoint and only moves on when every phase in use stays above 50 %. No full tower from the plain reset yet.
+
 ## Install and run
 
 Python 3.10 or newer and MuJoCo 3.2 or newer. The UR5e model (same kinematics as the UR7e) is downloaded from MuJoCo Menagerie, not redistributed.
@@ -61,6 +73,7 @@ On the lab arm: [`ros2/tower_ros/README.md`](ros2/tower_ros/README.md).
 | [`tower.py`](pensig/tower.py) | Gymnasium env: blocks, camera and wrist estimates, wrist force, reward, protective stop |
 | [`tower_scripted.py`](pensig/tower_scripted.py) | scripted pick, carry and force-stopped touchdown |
 | [`ik.py`](pensig/ik.py), [`residual.py`](pensig/residual.py) | damped least-squares IK; env where PPO learns a correction on the script |
+| [`curriculum.py`](pensig/curriculum.py) | episodes started partway by the script, for the end-to-end policy |
 | [`ros2/tower_ros`](ros2/tower_ros) | perception, scripted tower and policy nodes for the real UR7e |
 | [`scripts/`](scripts) | train, evaluate, export the policy, world-model planning, Savio jobs |
 
