@@ -1,17 +1,17 @@
-# ur7e-block-tower: stacking blocks with a UR7e, from MuJoCo to the real arm
+# ur7e-block-tower: reinforcement learning for block stacking on a UR7e, from MuJoCo to the real arm
 
 [Tower results](results) · [ROS 2 package for the lab arm](ros2/tower_ros)
 
 ![MuJoCo: start, black block coming down onto the green one, finished tower](results/tower_preview.png)
 
-A UR7e with a Robotiq Hand-E stacks the three blocks of the EECS 106A lab cell at UC Berkeley into one tower: black on green, then red on black. The task is built in MuJoCo with the lab geometry and the measured blocks, and the same scripted stack runs on the real arm through ROS 2. On the measured blocks, the scripted stack builds 91.5 % of 200 towers under camera error; a PPO policy fine-tuned on top of it reaches 83 %.
+A MuJoCo replica of the UR7e cell of the EECS 106A lab at UC Berkeley (Robotiq Hand-E, wrist camera, wrist force sensing, the three measured lab blocks) serves as the training environment for a PPO policy that stacks the blocks into one tower: black on green, then red on black. The policy learns a bounded correction on top of a scripted stack and builds 83 % of 200 towers under camera error, against 91.5 % for the script alone. It is exported to numpy and runs on the real arm through a ROS 2 node, with MoveIt IK and force and tracking stops.
 
 ## Method
 
 - **Perception.** Block poses come from a camera estimate with error (3 mm, 4 deg), replaced by a wrist-camera close-up (1 mm, 1.5 deg) once the gripper is above the block. The green block is wider than the 50 mm Hand-E stroke, so it stays in place as the base.
 - **Scripted stack** ([`tower_scripted.py`](pensig/tower_scripted.py)): pick and carry, going down only on the wrist estimate, then a touchdown at 6 cm/s and 1 cm/s over the last 12 mm that stops on the wrist force, like `moveUntilContact`.
 - **Learning** ([`residual.py`](pensig/residual.py), `ResidualTowerEnv`): PPO (Stable-Baselines3) learns a bounded correction on top of the script, with a potential-based reward and the wrist force in the observation. Damped least-squares IK turns the TCP target into joint commands at 20 Hz, and a protective stop ends the episode when the gripper or a block presses too hard, as on the real arm.
-- **Real arm** ([`ros2/tower_ros`](ros2/tower_ros)): the same stack on the lab UR7e with MoveIt IK, the wrist RealSense and a touchdown on the wrist force-torque sensor. `tower_policy` runs the PPO policy exported to numpy.
+- **Real arm** ([`ros2/tower_ros`](ros2/tower_ros)): `tower_policy` runs the PPO policy exported to numpy on the lab UR7e, with the same 42 observations as in simulation, MoveIt IK, the wrist RealSense and the wrist force-torque sensor. It waits for the arm to reach each command and stops on a tracking error or a contact force above the limit. `tower` runs the scripted stack alone.
 
 ## Results
 
@@ -33,7 +33,7 @@ Block sizes estimated from a photo, and what the wrist close-up brings:
 | Scripted stack, first estimate only | 52 % | 66 % | 78.8 % | 4.0 mm |
 | Scripted stack, exact poses | 98.5 % | 98.5 % | 100 % | 0.3 mm |
 
-The gain came from information, not training: without the close-up, most failures were a finger landing on top of the black block or a block set down off center, from a camera error the policy could not see. On the real UR7e, black on green worked on the first run in step mode, stopping at 3.1 N on contact.
+The gain came from information, not training: without the close-up, most failures were a finger landing on top of the black block or a block set down off center, from a camera error the policy could not see. On the real UR7e, the scripted stack placed black on green on its first run in step mode, stopping at 3.1 N on contact. The first policy runs on the arm reached the black block; one stopped at 74 N when the top of the 80 mm block met the Hand-E palm, fixed by grasping 10 mm higher (`grasp_raise`).
 
 Source: the `tower_*.json` files in [`results/`](results).
 
