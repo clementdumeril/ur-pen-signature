@@ -80,18 +80,25 @@ class ScriptStart(gym.Wrapper):
         self.pool_size = pool
         self.level = 0
         self.fixed_phase = None  # set: every episode starts at this phase (evaluation)
+        self.weights = None  # per start phase -1..7: more episodes where the policy fails more
         self.start_phase = -1
 
     def set_level(self, level: int):
         self.level = int(level)
+
+    def set_weights(self, weights):
+        self.weights = None if weights is None else np.asarray(weights, float)
 
     def _sample_phase(self) -> int:
         if self.fixed_phase is not None:
             return self.fixed_phase
         if self.level >= MAX_LEVEL and self.rng.random() < 0.5:
             return -1
-        lo = frontier(min(self.level, N_PHASES))
-        return int(self.rng.integers(lo, N_PHASES))  # lo = -1 includes the plain reset
+        lo = frontier(min(self.level, N_PHASES))  # lo = -1 includes the plain reset
+        if self.weights is None:
+            return int(self.rng.integers(lo, N_PHASES))
+        w = self.weights[lo + 1:]
+        return int(lo + self.rng.choice(len(w), p=w / w.sum()))
 
     def _new_sizes(self):
         for k, v in (self.sizes or random_sizes(self.rng)).items():

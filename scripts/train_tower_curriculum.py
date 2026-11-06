@@ -1,6 +1,8 @@
 """End-to-end tower policy: PPO on TowerEnv alone, episodes started partway by the script (pensig.curriculum).
 
-The level goes up once the policy places from the earliest start phase in half of the last 200 such episodes.
+The level goes up once the policy places in half of the last 200 episodes from every start phase in use, not
+only the earliest: the first run (tower_cur_40966043) passed levels 3 and 4, then at level 5 forgot them (6 % from
+phase 4, 0 % from phase 3 after 20M more steps). Start phases are also drawn more often where the policy fails.
 Block sizes are random at every reset. At the end, full towers from the plain reset, the two stages chained and
 no script anywhere, on the measured lab blocks and on random ones.
 
@@ -40,7 +42,11 @@ def make_env(rank: int, seed: int, level: int):
 
 
 def resume_from(run: Path):
-    """Newest checkpoint of a run (or its final model), its VecNormalize stats, and the level it had reached."""
+    """Newest checkpoint of a run (or its final model), its VecNormalize stats, and the level it had reached.
+    A checkpoint zip instead of a run: that checkpoint, level from --level."""
+    if run.suffix == ".zip":
+        n = run.stem.split("_")[1]
+        return run, run.parent / f"ppo_vecnormalize_{n}_steps.pkl", None
     final = run / "final_model.zip"
     ckpts = sorted((run / "checkpoints").glob("ppo_*_steps.zip"), key=lambda f: int(f.stem.split("_")[1]))
     if final.exists():
@@ -148,7 +154,7 @@ def main():
 
     resume = resume_from(args.resume) if args.resume else None
     if args.level is None:
-        args.level = resume[2] if resume else 0
+        args.level = (resume[2] if resume else 0) or 0
     venv = SubprocVecEnv([make_env(i, args.seed, args.level) for i in range(args.n_envs)])
     if resume:
         print(f"resuming from {resume[0]} at level {args.level}", flush=True)
@@ -165,37 +171,44 @@ def main():
     class Curriculum(BaseCallback):
         def __init__(self):
             super().__init__()
-            self.level, self.front, self.full = args.level, deque(maxlen=args.window), deque(maxlen=args.window)
+            self.level = args.level
+            self.phase = {p: deque(maxlen=args.window) for p in range(-1, N_PHASES)}  # successes per start phase
             self.all, self.log, self.t0 = deque(maxlen=1000), [], time.time()
+
+        def active(self):
+            return range(frontier(min(self.level, MAX_LEVEL - 1)), N_PHASES)
 
         def _on_step(self) -> bool:
             for done, info in zip(self.locals["dones"], self.locals["infos"]):
-                if not done:
-                    continue
-                ok, p = bool(info.get("is_success")), info.get("start_phase", -1)
-                self.all.append(ok)
-                if p == -1:
-                    self.full.append(ok)
-                if p == frontier(min(self.level, MAX_LEVEL - 1)):
-                    self.front.append(ok)
-            if (self.level < MAX_LEVEL and len(self.front) == args.window
-                    and np.mean(self.front) >= args.threshold):
+                if done:
+                    ok = bool(info.get("is_success"))
+                    self.all.append(ok)
+                    self.phase[info.get("start_phase", -1)].append(ok)
+            act = self.active()
+            if (self.level < MAX_LEVEL and all(len(self.phase[p]) == args.window for p in act)
+                    and min(np.mean(self.phase[p]) for p in act) >= args.threshold):
                 self.level += 1
-                self.front.clear()
+                self.phase[frontier(min(self.level, MAX_LEVEL - 1))].clear()
                 venv.env_method("set_level", self.level)
                 self._print(f"level up -> {self.level}")
             return not args.max_minutes or time.time() - self.t0 < 60 * args.max_minutes
 
+        def weights(self):
+            """Start phases -1..7: weight 0.2 + failure rate, unknown phases as if always failed."""
+            return [0.2 + 1.0 - (float(np.mean(self.phase[p])) if self.phase[p] else 0.0)
+                    for p in range(-1, N_PHASES)]
+
         def _print(self, what=""):
-            mean = lambda q: round(float(np.mean(q)), 3) if q else None  # noqa: E731
-            entry = {"steps": self.num_timesteps, "level": self.level, "earliest_start_success": mean(self.front),
-                     "all_success": mean(self.all), "full_start_success": mean(self.full),
+            mean = lambda q: round(float(np.mean(q)), 2) if q else None  # noqa: E731
+            entry = {"steps": self.num_timesteps, "level": self.level, "all_success": mean(self.all),
+                     "success_by_start": {p: mean(self.phase[p]) for p in self.active()},
                      "minutes": round((time.time() - self.t0) / 60, 1)}
             self.log.append(entry)
             print(json.dumps(entry), what, flush=True)
             (args.out / "curriculum.json").write_text(json.dumps(self.log, indent=1))
 
         def _on_rollout_end(self) -> None:
+            venv.env_method("set_weights", self.weights())
             if self.n_calls % (20 * 512) < 512:  # about every 20 rollouts
                 self._print()
             venv.save(str(args.out / "vecnormalize.pkl"))
