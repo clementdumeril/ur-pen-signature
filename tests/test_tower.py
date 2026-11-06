@@ -72,3 +72,16 @@ def test_wrist_estimate_before_descent():
             env.step(policy(env))
         assert env.wrist_held
         assert np.linalg.norm(env.est_held[:2] - env.block_pose(env.held)[0][:2]) < 0.005
+
+
+def test_script_start_hands_over_at_phase():
+    from pensig.curriculum import ScriptStart, frontier
+
+    assert [frontier(k) for k in (0, 7, 8, 9)] == [7, 0, -1, -1]
+    w = ScriptStart(TowerEnv(TowerConfig()), seed=3)
+    w.set_level(3)
+    obs, info = w.reset(seed=3)
+    assert obs.shape == (29,) and w.unwrapped.t == 0
+    assert 4 <= info["start_phase"] <= 7
+    _, _, _, _, info = w.step(np.zeros(5))
+    assert "start_phase" in info
