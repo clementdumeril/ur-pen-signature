@@ -1,6 +1,8 @@
 #!/bin/bash
 # End-to-end tower policy with start states from the script (scripts/train_tower_curriculum.py), on Savio.
 # From the repo root on Savio:  sbatch scripts/savio_tower_cur.sbatch
+# Continue an earlier run (newest checkpoint, its level):  sbatch scripts/savio_tower_cur.sbatch tower_cur
+# Output: /global/scratch/users/$USER/tower_cur_<job id>
 #SBATCH --job-name=tower_cur
 #SBATCH --account=ic_piml
 #SBATCH --partition=savio3
@@ -20,5 +22,8 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 [ -d assets/mujoco_menagerie ] || "$VENV/bin/python" scripts/fetch_assets.py
 
-"$VENV/bin/python" -u scripts/train_tower_curriculum.py --out /global/scratch/users/$USER/tower_cur \
+RUNS=/global/scratch/users/$USER
+RESUME=()
+[ -n "$1" ] && RESUME=(--resume "$RUNS/$1")
+"$VENV/bin/python" -u scripts/train_tower_curriculum.py --out "$RUNS/tower_cur_$SLURM_JOB_ID" "${RESUME[@]}" \
     --timesteps 30000000 --max-minutes 750 --n-envs 32 --eval-towers 100

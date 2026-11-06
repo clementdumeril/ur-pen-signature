@@ -5,6 +5,7 @@ Block sizes are random at every reset. At the end, full towers from the plain re
 no script anywhere, on the measured lab blocks and on random ones.
 
 python scripts/train_tower_curriculum.py --out runs/tower_cur --timesteps 20000000
+python scripts/train_tower_curriculum.py --resume runs/tower_cur --out runs/tower_cur2   # newest checkpoint, its level
 python scripts/train_tower_curriculum.py --eval-only runs/tower_cur/final_model.zip
 """
 
@@ -35,6 +36,21 @@ def make_env(rank: int, seed: int, level: int):
         env.reset(seed=seed + 1000 * rank)
         return env
     return thunk
+
+
+def resume_from(run: Path):
+    """Newest checkpoint of a run (or its final model), its VecNormalize stats, and the level it had reached."""
+    final = run / "final_model.zip"
+    ckpts = sorted((run / "checkpoints").glob("ppo_*_steps.zip"), key=lambda f: int(f.stem.split("_")[1]))
+    if final.exists():
+        zip_, stats = final, run / "vecnormalize.pkl"
+    elif ckpts:
+        n = ckpts[-1].stem.split("_")[1]
+        zip_, stats = ckpts[-1], run / "checkpoints" / f"ppo_vecnormalize_{n}_steps.pkl"
+    else:
+        raise FileNotFoundError(f"no model in {run}")
+    log = json.loads((run / "curriculum.json").read_text()) if (run / "curriculum.json").exists() else []
+    return zip_, stats, (log[-1]["level"] if log else 0)
 
 
 def evaluate(path: Path, towers: int, seed: int = 10_000) -> dict:
@@ -75,7 +91,8 @@ def main():
     ap.add_argument("--out", type=Path, default=Path("runs/tower_cur"))
     ap.add_argument("--timesteps", type=int, default=20_000_000)
     ap.add_argument("--n-envs", type=int, default=os.cpu_count())
-    ap.add_argument("--level", type=int, default=0, help="curriculum level to start at")
+    ap.add_argument("--level", type=int, help="curriculum level to start at (default 0, or the resumed run's)")
+    ap.add_argument("--resume", type=Path, help="run directory to continue from: newest checkpoint and its level")
     ap.add_argument("--threshold", type=float, default=0.5, help="success from the earliest start to level up")
     ap.add_argument("--window", type=int, default=200, help="episodes from the earliest start that count")
     ap.add_argument("--log-std-init", type=float, default=-1.2)
@@ -96,12 +113,21 @@ def main():
     (args.out / "config.json").write_text(json.dumps({"env": asdict(TowerConfig()), "args": {
         k: str(v) for k, v in vars(args).items()}}, indent=2, default=str))
 
+    resume = resume_from(args.resume) if args.resume else None
+    if args.level is None:
+        args.level = resume[2] if resume else 0
     venv = SubprocVecEnv([make_env(i, args.seed, args.level) for i in range(args.n_envs)])
-    venv = VecNormalize(venv, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=0.98)
-    model = PPO("MlpPolicy", venv, n_steps=512, batch_size=1024, n_epochs=8, learning_rate=3e-4, gamma=0.98,
-                gae_lambda=0.95, clip_range=0.2, ent_coef=0.0, seed=args.seed, device="cpu", verbose=0,
-                tensorboard_log=str(args.out),
-                policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=args.log_std_init))
+    if resume:
+        print(f"resuming from {resume[0]} at level {args.level}", flush=True)
+        venv = VecNormalize.load(str(resume[1]), venv)
+        model = PPO.load(resume[0], env=venv, device="cpu")
+        model.tensorboard_log = str(args.out)
+    else:
+        venv = VecNormalize(venv, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=0.98)
+        model = PPO("MlpPolicy", venv, n_steps=512, batch_size=1024, n_epochs=8, learning_rate=3e-4, gamma=0.98,
+                    gae_lambda=0.95, clip_range=0.2, ent_coef=0.0, seed=args.seed, device="cpu", verbose=0,
+                    tensorboard_log=str(args.out),
+                    policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=args.log_std_init))
 
     class Curriculum(BaseCallback):
         def __init__(self):
@@ -145,7 +171,7 @@ def main():
     checkpoints = CheckpointCallback(save_freq=max(1_000_000 // args.n_envs, 1),
                                      save_path=str(args.out / "checkpoints"), name_prefix="ppo",
                                      save_vecnormalize=True)
-    model.learn(total_timesteps=args.timesteps, callback=[checkpoints, cur])
+    model.learn(total_timesteps=args.timesteps, callback=[checkpoints, cur], reset_num_timesteps=not resume)
     cur._print("end of training")
     model.save(args.out / "final_model")
     venv.save(str(args.out / "vecnormalize.pkl"))
