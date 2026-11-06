@@ -79,12 +79,15 @@ class ScriptStart(gym.Wrapper):
         self.pool = defaultdict(list)  # phase -> [[uses left, env state, script state]]
         self.pool_size = pool
         self.level = 0
+        self.fixed_phase = None  # set: every episode starts at this phase (evaluation)
         self.start_phase = -1
 
     def set_level(self, level: int):
         self.level = int(level)
 
     def _sample_phase(self) -> int:
+        if self.fixed_phase is not None:
+            return self.fixed_phase
         if self.level >= MAX_LEVEL and self.rng.random() < 0.5:
             return -1
         lo = frontier(min(self.level, N_PHASES))

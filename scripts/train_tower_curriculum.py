@@ -7,6 +7,7 @@ no script anywhere, on the measured lab blocks and on random ones.
 python scripts/train_tower_curriculum.py --out runs/tower_cur --timesteps 20000000
 python scripts/train_tower_curriculum.py --resume runs/tower_cur --out runs/tower_cur2   # newest checkpoint, its level
 python scripts/train_tower_curriculum.py --eval-only runs/tower_cur/final_model.zip
+python scripts/train_tower_curriculum.py --eval-phases runs/tower_cur   # success and failures per start phase
 """
 
 import argparse
@@ -23,7 +24,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluate import load_policy  # noqa: E402
 from pensig.config import TowerConfig  # noqa: E402
-from pensig.curriculum import MAX_LEVEL, ScriptStart, frontier, random_sizes  # noqa: E402
+from pensig.curriculum import MAX_LEVEL, N_PHASES, ScriptStart, frontier, random_sizes  # noqa: E402
 from pensig.tower import TowerEnv  # noqa: E402
 
 MEASURED = {"base_size": (0.05, 0.05), "mid_size": (0.04, 0.08), "top_size": (0.035, 0.03)}
@@ -51,6 +52,32 @@ def resume_from(run: Path):
         raise FileNotFoundError(f"no model in {run}")
     log = json.loads((run / "curriculum.json").read_text()) if (run / "curriculum.json").exists() else []
     return zip_, stats, (log[-1]["level"] if log else 0)
+
+
+def evaluate_phases(run: Path, episodes: int, seed: int = 20_000) -> dict:
+    """The newest model of a run, started at each script phase in turn (random sizes): where does it fail?"""
+    zip_, stats, level = resume_from(run) if run.is_dir() else (run, run.parent / "vecnormalize.pkl", None)
+    policy = load_policy(zip_)
+    w = ScriptStart(TowerEnv(TowerConfig()), seed=seed)
+    out = {"model": str(zip_), "level": level}
+    for p in [*range(N_PHASES - 1, -1, -1), -1]:
+        w.fixed_phase = p
+        ok, why, steps = 0, {}, 0
+        for ep in range(episodes):
+            obs, _ = w.reset(seed=seed + ep if ep == 0 else None)
+            done = False
+            while not done:
+                obs, _, term, trunc, info = w.step(policy(w, obs))
+                done, steps = term or trunc, steps + 1
+            ok += bool(info["is_success"])
+            if not info["is_success"]:
+                r = info["failure"] or ("stop" if info.get("stopped") else "unstable" if info.get("unstable")
+                                        else "timeout")
+                why[r] = why.get(r, 0) + 1
+        out[f"phase {p}" if p >= 0 else "plain reset"] = {"success": ok / episodes, "failures": why,
+                                                           "mean_steps": round(steps / episodes)}
+        print(f"start {p}: {ok / episodes:.2f} success, failures {why}, {steps / episodes:.0f} steps", flush=True)
+    return out
 
 
 def evaluate(path: Path, towers: int, seed: int = 10_000) -> dict:
@@ -99,8 +126,14 @@ def main():
     ap.add_argument("--max-minutes", type=float, help="stop training after this long, then save and evaluate")
     ap.add_argument("--eval-towers", type=int, default=100)
     ap.add_argument("--eval-only", type=Path, help="model zip: only evaluate it")
+    ap.add_argument("--eval-phases", type=Path, help="run directory or model zip: success from each start phase")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
+    if args.eval_phases:
+        res = evaluate_phases(args.eval_phases, args.eval_towers)
+        if args.eval_phases.is_dir():
+            (args.eval_phases / "eval_phases.json").write_text(json.dumps(res, indent=2))
+        return
     if args.eval_only:
         evaluate(args.eval_only, args.eval_towers)
         return
