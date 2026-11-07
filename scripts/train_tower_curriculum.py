@@ -3,6 +3,9 @@
 The level goes up once the policy places in half of the last 200 episodes from every start phase in use, not
 only the earliest: the first run (tower_cur_40966043) passed levels 3 and 4, then at level 5 forgot them (6 % from
 phase 4, 0 % from phase 3 after 20M more steps). Start phases are also drawn more often where the policy fails.
+That alone did not stop it (tower_cur_40978032: phases 2-4 fell to 1-16 % at level 5 while 5-7 stayed above
+80 %): with gamma 0.98 and no cost for running out of time, hovering until the time limit was worth as much as a
+grasp 70 steps from success. Hence gamma 0.995 and a timeout penalty equal to the failure penalty.
 Block sizes are random at every reset. At the end, full towers from the plain reset, the two stages chained and
 no script anywhere, on the measured lab blocks and on random ones.
 
@@ -32,9 +35,11 @@ from pensig.tower import TowerEnv  # noqa: E402
 MEASURED = {"base_size": (0.05, 0.05), "mid_size": (0.04, 0.08), "top_size": (0.035, 0.03)}
 
 
-def make_env(rank: int, seed: int, level: int):
+def make_env(rank: int, seed: int, level: int, gamma: float, timeout_penalty: float):
     def thunk():
-        env = ScriptStart(TowerEnv(TowerConfig()), seed=seed + 1000 * rank)
+        cfg = TowerConfig()
+        cfg.shaping_gamma, cfg.timeout_penalty = gamma, timeout_penalty
+        env = ScriptStart(TowerEnv(cfg), seed=seed + 1000 * rank)
         env.set_level(level)
         env.reset(seed=seed + 1000 * rank)
         return env
@@ -129,6 +134,8 @@ def main():
     ap.add_argument("--threshold", type=float, default=0.5, help="success from the earliest start to level up")
     ap.add_argument("--window", type=int, default=200, help="episodes from the earliest start that count")
     ap.add_argument("--log-std-init", type=float, default=-1.2)
+    ap.add_argument("--gamma", type=float, default=0.995, help="PPO discount, also the reward shaping one")
+    ap.add_argument("--timeout-penalty", type=float, default=3.0, help="reward lost when the steps run out")
     ap.add_argument("--max-minutes", type=float, help="stop training after this long, then save and evaluate")
     ap.add_argument("--eval-towers", type=int, default=100)
     ap.add_argument("--eval-only", type=Path, help="model zip: only evaluate it")
@@ -155,15 +162,17 @@ def main():
     resume = resume_from(args.resume) if args.resume else None
     if args.level is None:
         args.level = (resume[2] if resume else 0) or 0
-    venv = SubprocVecEnv([make_env(i, args.seed, args.level) for i in range(args.n_envs)])
+    venv = SubprocVecEnv([make_env(i, args.seed, args.level, args.gamma, args.timeout_penalty)
+                          for i in range(args.n_envs)])
     if resume:
         print(f"resuming from {resume[0]} at level {args.level}", flush=True)
         venv = VecNormalize.load(str(resume[1]), venv)
-        model = PPO.load(resume[0], env=venv, device="cpu")
+        venv.gamma = args.gamma
+        model = PPO.load(resume[0], env=venv, device="cpu", gamma=args.gamma)
         model.tensorboard_log = str(args.out)
     else:
-        venv = VecNormalize(venv, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=0.98)
-        model = PPO("MlpPolicy", venv, n_steps=512, batch_size=1024, n_epochs=8, learning_rate=3e-4, gamma=0.98,
+        venv = VecNormalize(venv, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=args.gamma)
+        model = PPO("MlpPolicy", venv, n_steps=512, batch_size=1024, n_epochs=8, learning_rate=3e-4, gamma=args.gamma,
                     gae_lambda=0.95, clip_range=0.2, ent_coef=0.0, seed=args.seed, device="cpu", verbose=0,
                     tensorboard_log=str(args.out),
                     policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), log_std_init=args.log_std_init))

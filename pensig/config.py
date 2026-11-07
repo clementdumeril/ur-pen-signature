@@ -113,6 +113,12 @@ class TowerConfig:
     clear_height: float = 0.01
     hold_steps: int = 3
 
+    # Reward shaping discount, the PPO gamma, and a penalty when the episode runs out of steps. The defaults are
+    # those the residual policies were trained with; the end-to-end curriculum uses 0.995 and 3.0, else hovering
+    # until the time limit pays as much as trying a grasp 70 steps from success.
+    shaping_gamma: float = 0.98
+    timeout_penalty: float = 0.0
+
     def noiseless(self) -> "TowerConfig":
         cfg = TowerConfig(**{k: getattr(self, k) for k in self.__dataclass_fields__})
         cfg.pos_noise = cfg.yaw_noise = cfg.size_noise = cfg.force_noise = 0.0

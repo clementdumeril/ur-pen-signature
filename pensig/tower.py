@@ -23,7 +23,7 @@ BLOCK_RGBA = {"green": "0.2 0.75 0.3 1", "black": "0.06 0.06 0.06 1", "red": "0.
 BLOCK_MAX = 0.03  # half size the boxes are compiled at, shrunk at reset
 TIP_BELOW_TCP = HANDE_BODY + FINGER_LEN - TCP_Z
 OBS_CENTER = np.array([0.5, 0.0, 0.1])
-SHAPING_GAMMA = 0.98  # the PPO discount in scripts/train.py
+SHAPING_GAMMA = 0.98  # TowerConfig.shaping_gamma default: the PPO discount in scripts/train.py
 SUCCESS_BONUS = 10.0
 FAILURE_PENALTY = 3.0  # protective stop, dropped, toppled or knocked block
 COS_UPRIGHT = np.cos(np.deg2rad(5.0))
@@ -290,6 +290,8 @@ class TowerEnv(gym.Env):
             success = False
         terminated = success or bool(failure) or stopped
         truncated = self.t >= cfg.episode_steps
+        if truncated and not terminated:
+            reward -= cfg.timeout_penalty
         info = self._info(success, failure)
         info["stopped"] = stopped
         return self._obs(), reward, terminated, truncated, info
@@ -394,7 +396,7 @@ class TowerEnv(gym.Env):
         # placements succeeding, PPO learned to stall there.
         if self.phi_prev is None:
             self.phi_prev = phi
-        reward = SHAPING_GAMMA * phi - self.phi_prev
+        reward = cfg.shaping_gamma * phi - self.phi_prev
         self.phi_prev = phi
         reward -= 0.2 * hit
         reward -= 0.01 * float(a @ a)
